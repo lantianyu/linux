@@ -4778,6 +4778,25 @@ static inline void __vmx_flush_tlb(struct kvm_vcpu *vcpu, int vpid,
 	}
 }
 
+static int hv_remote_flush_tlb(struct kvm *kvm)
+{
+	int ret;
+
+	spin_lock(&to_kvm_vmx(kvm)->ept_pointer_lock);
+
+	if (!to_kvm_vmx(kvm)->ept_pointers_match) {
+		ret = -EFAULT;
+		goto out;
+	}
+
+	ret = hyperv_flush_guest_mapping(
+			to_vmx(kvm_get_vcpu(kvm, 0))->ept_pointer);
+
+out:
+	spin_unlock(&to_kvm_vmx(kvm)->ept_pointer_lock);
+	return ret;
+}
+
 static void vmx_flush_tlb(struct kvm_vcpu *vcpu, bool invalidate_gpa)
 {
 	__vmx_flush_tlb(vcpu, to_vmx(vcpu)->vpid, invalidate_gpa);
@@ -4968,7 +4987,7 @@ static void check_ept_pointer(struct kvm_vcpu *vcpu, u64 eptp)
 	u64 tmp_eptp = INVALID_PAGE;
 	int i;
 
-	if (!kvm_x86_ops->tlb_remote_flush)
+	if (!kvm_x86_ops->hv_tlb_remote_flush)
 		return;
 
 	spin_lock(&to_kvm_vmx(kvm)->ept_pointer_lock);
@@ -7569,6 +7588,12 @@ static __init int hardware_setup(void)
 
 	if (enable_ept && !cpu_has_vmx_ept_2m_page())
 		kvm_disable_largepages();
+
+#if IS_ENABLED(CONFIG_HYPERV)
+	if (ms_hyperv.nested_features & HV_X64_NESTED_GUEST_MAPPING_FLUSH
+	    && enable_ept)
+		kvm_x86_ops->hv_tlb_remote_flush = hv_remote_flush_tlb;
+#endif
 
 	if (!cpu_has_vmx_ple()) {
 		ple_gap = 0;
