@@ -194,6 +194,9 @@ struct kvm_vmx {
 	unsigned int tss_addr;
 	bool ept_identity_pagetable_done;
 	gpa_t ept_identity_map_addr;
+
+	bool ept_pointers_match;
+	spinlock_t ept_pointer_lock;
 };
 
 #define NR_AUTOLOAD_MSRS 8
@@ -853,6 +856,7 @@ struct vcpu_vmx {
 	 */
 	u64 msr_ia32_feature_control;
 	u64 msr_ia32_feature_control_valid_bits;
+	u64 ept_pointer;
 };
 
 enum segment_cache_field {
@@ -4958,6 +4962,32 @@ static u64 construct_eptp(struct kvm_vcpu *vcpu, unsigned long root_hpa)
 	return eptp;
 }
 
+static void check_ept_pointer(struct kvm_vcpu *vcpu, u64 eptp)
+{
+	struct kvm *kvm = vcpu->kvm;
+	u64 tmp_eptp = INVALID_PAGE;
+	int i;
+
+	if (!kvm_x86_ops->tlb_remote_flush)
+		return;
+
+	spin_lock(&to_kvm_vmx(kvm)->ept_pointer_lock);
+	to_vmx(vcpu)->ept_pointer = eptp;
+
+	kvm_for_each_vcpu(i, vcpu, kvm) {
+		if (!VALID_PAGE(tmp_eptp)) {
+			tmp_eptp = to_vmx(vcpu)->ept_pointer;
+		} else if (tmp_eptp != to_vmx(vcpu)->ept_pointer) {
+			to_kvm_vmx(kvm)->ept_pointers_match = false;
+			spin_unlock(&to_kvm_vmx(kvm)->ept_pointer_lock);
+			return;
+		}
+	}
+
+	to_kvm_vmx(kvm)->ept_pointers_match = true;
+	spin_unlock(&to_kvm_vmx(kvm)->ept_pointer_lock);
+}
+
 static void vmx_set_cr3(struct kvm_vcpu *vcpu, unsigned long cr3)
 {
 	unsigned long guest_cr3;
@@ -4967,6 +4997,8 @@ static void vmx_set_cr3(struct kvm_vcpu *vcpu, unsigned long cr3)
 	if (enable_ept) {
 		eptp = construct_eptp(vcpu, cr3);
 		vmcs_write64(EPT_POINTER, eptp);
+		check_ept_pointer(vcpu, eptp);
+
 		if (enable_unrestricted_guest || is_paging(vcpu) ||
 		    is_guest_mode(vcpu))
 			guest_cr3 = kvm_read_cr3(vcpu);
@@ -10383,6 +10415,8 @@ free_vcpu:
 
 static int vmx_vm_init(struct kvm *kvm)
 {
+	spin_lock_init(&to_kvm_vmx(kvm)->ept_pointer_lock);
+
 	if (!ple_gap)
 		kvm->arch.pause_in_guest = true;
 	return 0;
