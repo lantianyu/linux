@@ -25,6 +25,8 @@
 #include <asm/mshyperv.h>
 #include <asm/tlbflush.h>
 
+#include <asm/trace/hyperv.h>
+
 int hyperv_flush_guest_mapping(u64 as)
 {
 	struct hv_guest_mapping_flush **flush_pcpu;
@@ -59,6 +61,7 @@ int hyperv_flush_guest_mapping(u64 as)
 		ret = 0;
 
 fault:
+	trace_hyperv_nested_flush_guest_mapping(as, ret);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(hyperv_flush_guest_mapping);
