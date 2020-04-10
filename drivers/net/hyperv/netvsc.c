@@ -22,6 +22,7 @@
 #include <linux/prefetch.h>
 
 #include <asm/sync_bitops.h>
+#include <asm/mshyperv.h>
 
 #include "hyperv_net.h"
 #include "netvsc_trace.h"
@@ -330,7 +331,8 @@ static int netvsc_init_buf(struct hv_device *device,
 	 */
 	ret = vmbus_establish_gpadl(device->channel, net_device->recv_buf,
 				    buf_size,
-				    &net_device->recv_buf_gpadl_handle);
+				    &net_device->recv_buf_gpadl_handle,
+				    VMBUS_PAGE_VISIBLE_READ_WRITE);
 	if (ret != 0) {
 		netdev_err(ndev,
 			"unable to establish receive buffer's gpadl\n");
@@ -409,10 +411,13 @@ static int netvsc_init_buf(struct hv_device *device,
 	/* Establish the gpadl handle for this buffer on this
 	 * channel.  Note: This call uses the vmbus connection rather
 	 * than the channel to establish the gpadl handle.
+	 * Send buffer should theoretically be only marked as "read-only", but
+	 * the netvsp for some reason needs write capabilities on it.
 	 */
 	ret = vmbus_establish_gpadl(device->channel, net_device->send_buf,
 				    buf_size,
-				    &net_device->send_buf_gpadl_handle);
+				    &net_device->send_buf_gpadl_handle,
+				    VMBUS_PAGE_VISIBLE_READ_WRITE);
 	if (ret != 0) {
 		netdev_err(ndev,
 			   "unable to establish send buffer's gpadl\n");
