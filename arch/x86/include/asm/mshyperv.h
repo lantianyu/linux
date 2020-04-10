@@ -239,6 +239,7 @@ bool hv_vcpu_is_preempted(int vcpu);
 static inline void hv_apic_init(void) {}
 #endif
 
+int hv_mark_gpa_visibility(u16 count, const u64 pfn[], u32 visibility);
 #else /* CONFIG_HYPERV */
 static inline void hyperv_init(void) {}
 static inline void hyperv_setup_mmu_ops(void) {}
@@ -261,5 +262,10 @@ static inline int hyperv_flush_guest_mapping_range(u64 as,
 
 
 #include <asm-generic/mshyperv.h>
+
+static inline bool hv_partition_is_isolated(void)
+{
+	return (ms_hyperv.partition_flags & HV_X64_PARTITION_ISOLATION);
+}
 
 #endif

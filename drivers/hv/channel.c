@@ -303,8 +303,10 @@ static int create_gpadl_header(void *kbuffer, u32 size,
 	struct vmbus_channel_gpadl_body *gpadl_body;
 	struct vmbus_channel_msginfo *msgheader;
 	struct vmbus_channel_msginfo *msgbody = NULL;
+	struct vmbus_channel_msginfo *pos = NULL;
+	struct vmbus_channel_msginfo *tmp = NULL;
 	u32 msgsize;
-
+	int ret = -ENOMEM;
 	int pfnsum, pfncount, pfnleft, pfncurr, pfnsize;
 
 	pagecount = size >> PAGE_SHIFT;
@@ -339,6 +341,10 @@ static int create_gpadl_header(void *kbuffer, u32 size,
 			gpadl_header->range[0].pfn_array[i] = virt_to_hvpfn(
 				kbuffer + PAGE_SIZE * i);
 		*msginfo = msgheader;
+		ret = hv_mark_gpa_visibility(i,
+			gpadl_header->range[0].pfn_array, visibility);
+		if (ret < 0)
+			goto nomem;
 
 		pfnsum = pfncount;
 		pfnleft = pagecount - pfncount;
@@ -360,22 +366,8 @@ static int create_gpadl_header(void *kbuffer, u32 size,
 				  pfncurr * sizeof(u64);
 			msgbody = kzalloc(msgsize, GFP_KERNEL);
 
-			if (!msgbody) {
-				struct vmbus_channel_msginfo *pos = NULL;
-				struct vmbus_channel_msginfo *tmp = NULL;
-				/*
-				 * Free up all the allocated messages.
-				 */
-				list_for_each_entry_safe(pos, tmp,
-					&msgheader->submsglist,
-					msglistentry) {
-
-					list_del(&pos->msglistentry);
-					kfree(pos);
-				}
-
-				goto nomem;
-			}
+			if (!msgbody)
+				goto Cleanvisibility;
 
 			msgbody->msgsize = msgsize;
 			gpadl_body =
@@ -390,6 +382,10 @@ static int create_gpadl_header(void *kbuffer, u32 size,
 			for (i = 0; i < pfncurr; i++)
 				gpadl_body->pfn[i] = virt_to_hvpfn(
 					kbuffer + PAGE_SIZE * (pfnsum + i));
+			ret = hv_mark_gpa_visibility(i, gpadl_body->pfn,
+						     visibility);
+			if (ret < 0)
+				goto Cleanvisibility;
 
 			/* add to msg header */
 			list_add_tail(&msgbody->msglistentry,
@@ -420,14 +416,51 @@ static int create_gpadl_header(void *kbuffer, u32 size,
 			gpadl_header->range[0].pfn_array[i] = virt_to_hvpfn(
 				kbuffer + PAGE_SIZE * i);
 
+		ret = hv_mark_gpa_visibility(i, gpadl_header->range[0].pfn_array,
+					     visibility);
+		if (ret < 0)
+			goto nomem;
 		*msginfo = msgheader;
 	}
 
 	return 0;
+
+Cleanvisibility:
+	/*
+	 * Free up all the allocated messages.
+	 */
+	list_for_each_entry_safe(pos, tmp,
+		&msgheader->submsglist,
+		msglistentry) {
+
+		list_del(&pos->msglistentry);
+		kfree(pos);
+	}
+
+	/* Set host visibility back to not-visible. */
+	pfnleft = pfnsum;
+	pfnsum = 0;
+	while (pfnleft) {
+		if (pfnleft > pfncount)
+			pfncurr = pfncount;
+		else
+			pfncurr = pfnleft;
+
+		for (i = 0; i < pfncurr; i++)
+			gpadl_body->pfn[i] = virt_to_hvpfn(
+				kbuffer + PAGE_SIZE * (pfnsum + i));
+		hv_mark_gpa_visibility(i, gpadl_body->pfn,
+				VMBUS_PAGE_NOT_VISIBLE);
+
+		pfnsum += pfncurr;
+		pfnleft -= pfncurr;
+	}
+
 nomem:
+
 	kfree(msgheader);
 	kfree(msgbody);
-	return -ENOMEM;
+	return ret;
 }
 
 /*
