@@ -328,6 +328,7 @@ static struct vmbus_channel *alloc_channel(void)
 		return NULL;
 
 	spin_lock_init(&channel->lock);
+	spin_lock_init(&channel->bp_lock);
 	init_completion(&channel->rescind_event);
 
 	INIT_LIST_HEAD(&channel->sc_list);
@@ -339,17 +340,6 @@ static struct vmbus_channel *alloc_channel(void)
 	hv_ringbuffer_pre_init(channel);
 
 	return channel;
-}
-
-/*
- * free_channel - Release the resources used by the vmbus channel object
- */
-static void free_channel(struct vmbus_channel *channel)
-{
-	tasklet_kill(&channel->callback_event);
-	vmbus_remove_channel_attr_group(channel);
-
-	kobject_put(&channel->kobj);
 }
 
 static void percpu_channel_enq(void *arg)

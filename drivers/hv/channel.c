@@ -24,7 +24,7 @@
 #define NUM_PAGES_SPANNED(addr, len) \
 ((PAGE_ALIGN(addr + len) >> PAGE_SHIFT) - (addr >> PAGE_SHIFT))
 
-static unsigned long virt_to_hvpfn(void *addr)
+unsigned long virt_to_hvpfn(void *addr)
 {
 	phys_addr_t paddr;
 
@@ -36,6 +36,7 @@ static unsigned long virt_to_hvpfn(void *addr)
 
 	return  paddr >> PAGE_SHIFT;
 }
+EXPORT_SYMBOL_GPL(virt_to_hvpfn);
 
 /*
  * vmbus_setevent- Trigger an event notification on the specified
@@ -876,7 +877,11 @@ int vmbus_sendpacket_pagebuffer(struct vmbus_channel *channel,
 	bufferlist[2].iov_base = &aligned_data;
 	bufferlist[2].iov_len = (packetlen_aligned - packetlen);
 
-	return hv_ringbuffer_write(channel, bufferlist, 3);
+	if (hv_partition_is_isolated())
+		return vmbus_sendpacket_pagebuffer_bounce(channel, &desc,
+			descsize, bufferlist, io_type, bounce_pkt);
+	else
+		return hv_ringbuffer_write(channel, bufferlist, 3);
 }
 EXPORT_SYMBOL_GPL(vmbus_sendpacket_pagebuffer);
 
@@ -916,7 +921,13 @@ int vmbus_sendpacket_mpb_desc(struct vmbus_channel *channel,
 	bufferlist[2].iov_base = &aligned_data;
 	bufferlist[2].iov_len = (packetlen_aligned - packetlen);
 
-	return hv_ringbuffer_write(channel, bufferlist, 3);
+	if (hv_partition_is_isolated()) {
+		BUG_ON(io_type >= IO_TYPE_UNKNOWN);
+		return vmbus_sendpacket_mpb_desc_bounce(channel, desc,
+				desc_size, bufferlist, io_type, bounce_pkt);
+	} else {
+		return hv_ringbuffer_write(channel, bufferlist, 3);
+	}
 }
 EXPORT_SYMBOL_GPL(vmbus_sendpacket_mpb_desc);
 
