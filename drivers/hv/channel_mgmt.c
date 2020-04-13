@@ -305,6 +305,18 @@ fw_error:
 EXPORT_SYMBOL_GPL(vmbus_prep_negotiate_resp);
 
 /*
+ * free_channel - Release the resources used by the vmbus channel object
+ */
+static void free_channel(struct vmbus_channel *channel)
+{
+	tasklet_kill(&channel->callback_event);
+	vmbus_remove_channel_attr_group(channel);
+
+	kobject_put(&channel->kobj);
+	hv_free_channel_ivm(channel);
+}
+
+/*
  * alloc_channel - Allocate and initialize a vmbus channel object
  */
 static struct vmbus_channel *alloc_channel(void)
@@ -504,6 +516,8 @@ static void vmbus_add_channel_work(struct work_struct *work)
 	}
 
 	newchannel->probe_done = true;
+
+	hv_init_channel_ivm(newchannel);
 	return;
 
 err_deq_chan:
