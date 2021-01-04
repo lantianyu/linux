@@ -33,6 +33,8 @@
 #include <scsi/scsi_transport.h>
 #include <asm/mshyperv.h>
 
+#include "../hv/hyperv_vmbus.h"
+
 /*
  * All wire protocol details (storage protocol between the guest and the host)
  * are consolidated here.
@@ -890,6 +892,16 @@ static int storvsc_channel_init(struct hv_device *device, bool is_fc)
 	stor_device->max_transfer_bytes =
 		vstor_packet->storage_channel_properties.max_transfer_bytes;
 
+	/*
+	 * Reserve enough bounce resources to be able to support paging
+	 * operations under low memory conditions, that cannot rely on
+	 * additional resources to be allocated.
+	 */
+	ret =  hv_bounce_resources_reserve(device->channel,
+			stor_device->max_transfer_bytes * 20);
+	if (ret < 0)
+		return ret;
+
 	if (!is_fc)
 		goto done;
 
@@ -1172,6 +1184,11 @@ static void storvsc_on_channel_callback(void *context)
 		request = (struct storvsc_cmd_request *)
 			((unsigned long)desc->trans_id);
 
+		if (desc->type == VM_PKT_COMP && request->bounce_pkt) {
+			hv_pkt_bounce(channel, request->bounce_pkt);
+			request->bounce_pkt = NULL;
+		}
+	
 		if (request == &stor_device->init_request ||
 		    request == &stor_device->reset_request) {
 			memcpy(&request->vstor_packet, packet,
