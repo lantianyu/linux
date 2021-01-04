@@ -26,7 +26,7 @@
 
 #include "hyperv_net.h"
 #include "netvsc_trace.h"
-
+#include "../../hv/hyperv_vmbus.h"
 /*
  * Switch the data path from the synthetic interface to the VF
  * interface.
@@ -300,9 +300,12 @@ static int netvsc_init_buf(struct hv_device *device,
 	struct nvsp_1_message_send_receive_buffer_complete *resp;
 	struct net_device *ndev = hv_get_drvdata(device);
 	struct nvsp_message *init_packet;
+	struct vm_struct *area;	
+	u64 extra_phys;
 	unsigned int buf_size;
+	unsigned long vaddr;
 	size_t map_words;
-	int ret = 0;
+	int ret = 0, i;	
 
 	/* Get receive buffer area. */
 	buf_size = device_info->recv_sections * device_info->recv_section_size;
@@ -337,6 +340,23 @@ static int netvsc_init_buf(struct hv_device *device,
 		netdev_err(ndev,
 			"unable to establish receive buffer's gpadl\n");
 		goto cleanup;
+	}
+
+	if (hv_isolation_type_snp()) {
+		area = alloc_vm_area(buf_size, NULL);
+		if (!area)
+			goto cleanup;
+
+		vaddr = (unsigned long)area->addr;
+
+		for (i = 0; i < buf_size / HV_HYP_PAGE_SIZE; i++) {
+			extra_phys = (virt_to_hvpfn(net_device->recv_buf + i * HV_HYP_PAGE_SIZE)
+				<< HV_HYP_PAGE_SHIFT) + ms_hyperv.shared_gpa_boundary;
+			ioremap_page_range(vaddr + i * HV_HYP_PAGE_SIZE,
+					   vaddr + (i + 1) * HV_HYP_PAGE_SIZE,
+					   extra_phys, PAGE_KERNEL_IO);
+		}
+		net_device->recv_buf = (void*)vaddr;
 	}
 
 	/* Notify the NetVsp of the gpadl handle */
@@ -424,6 +444,25 @@ static int netvsc_init_buf(struct hv_device *device,
 		goto cleanup;
 	}
 
+	if (hv_isolation_type_snp()) {
+		area = alloc_vm_area(buf_size, NULL);
+		if (!area)
+			goto cleanup;
+
+		vaddr = (unsigned long)area->addr;
+
+		for (i = 0; i < buf_size / HV_HYP_PAGE_SIZE; i++) {
+			extra_phys = (virt_to_hvpfn(net_device->send_buf + i * HV_HYP_PAGE_SIZE)
+				<< PAGE_SHIFT) + ms_hyperv.shared_gpa_boundary;
+			ioremap_page_range(vaddr + i * HV_HYP_PAGE_SIZE,
+					   vaddr + (i + 1) * HV_HYP_PAGE_SIZE,
+					   extra_phys, PAGE_KERNEL_IO);
+		}
+		
+		net_device->send_buf = (void*)vaddr;
+	}
+
+	
 	/* Notify the NetVsp of the gpadl handle */
 	init_packet = &net_device->channel_init_pkt;
 	memset(init_packet, 0, sizeof(struct nvsp_message));
@@ -703,6 +742,8 @@ static void netvsc_send_tx_complete(struct net_device *ndev,
 		u64_stats_update_end(&tx_stats->syncp);
 
 		napi_consume_skb(skb, budget);
+		if (desc->type == VM_PKT_COMP && packet->bounce_pkt)
+			hv_pkt_bounce(channel, packet->bounce_pkt);
 	}
 
 	queue_sends =
