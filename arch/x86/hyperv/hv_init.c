@@ -314,7 +314,8 @@ void __init hyperv_init(void)
 	hv_hypercall_pg  = __vmalloc(PAGE_SIZE, GFP_KERNEL, PAGE_KERNEL_RX);
 	if (hv_hypercall_pg == NULL) {
 		wrmsrl(HV_X64_MSR_GUEST_OS_ID, 0);
-		goto remove_cpuhp_state;
+		goto clean_guest_os_id;
+	}
 
 	if (hv_isolation_type_snp()) {
 		ms_hyperv.ghcb_base =
@@ -329,6 +330,8 @@ void __init hyperv_init(void)
 			kfree(ms_hyperv.ghcb_base);
 			goto clean_guest_os_id;
 		}
+
+		hv_ghcb_msr_write(HV_X64_MSR_GUEST_OS_ID, guest_id);
 	}
 
 	rdmsrl(HV_X64_MSR_HYPERCALL, hypercall_msr.as_uint64);
