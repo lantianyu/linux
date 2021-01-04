@@ -57,6 +57,7 @@ static int hv_cpu_init(unsigned int cpu)
 	struct hv_vp_assist_page **hvp = &hv_vp_assist_page[smp_processor_id()];
 	void **input_arg;
 	struct page *pg;
+	u64 ghcb_gpa;
 
 	input_arg = (void **)this_cpu_ptr(hyperv_pcpu_input_arg);
 	pg = alloc_page(GFP_KERNEL);
@@ -94,6 +95,15 @@ static int hv_cpu_init(unsigned int cpu)
 			HV_X64_MSR_VP_ASSIST_PAGE_ENABLE;
 
 		wrmsrl(HV_X64_MSR_VP_ASSIST_PAGE, val);
+	}
+
+	if (hv_isolation_type_snp() && ms_hyperv.ghcb_base
+	    && !ms_hyperv.ghcb_base[smp_processor_id()]) {
+		rdmsrl(HV_X64_MSR_GHCB_ADDR, ghcb_gpa);
+		ms_hyperv.ghcb_base[smp_processor_id()]
+			= ioremap_cache(ghcb_gpa, PAGE_SIZE);
+		if (!ms_hyperv.ghcb_base[smp_processor_id()])
+			return -ENOMEM;
 	}
 
 	return 0;
@@ -250,6 +260,7 @@ void __init hyperv_init(void)
 	u64 guest_id, required_msrs;
 	union hv_x64_msr_hypercall_contents hypercall_msr;
 	int cpuhp, i;
+	u64 ghcb_gpa;
 
 	if (x86_hyper_type != X86_HYPER_MS_HYPERV)
 		return;
@@ -304,6 +315,20 @@ void __init hyperv_init(void)
 	if (hv_hypercall_pg == NULL) {
 		wrmsrl(HV_X64_MSR_GUEST_OS_ID, 0);
 		goto remove_cpuhp_state;
+
+	if (hv_isolation_type_snp()) {
+		ms_hyperv.ghcb_base =
+			kzalloc(num_possible_cpus() * sizeof(void *),
+				GFP_KERNEL);
+		if (!ms_hyperv.ghcb_base)
+			goto clean_guest_os_id;
+
+		rdmsrl(HV_X64_MSR_GHCB_ADDR, ghcb_gpa);
+		ms_hyperv.ghcb_base[0] = ioremap_cache(ghcb_gpa, PAGE_SIZE);
+		if (!ms_hyperv.ghcb_base[0]) {
+			kfree(ms_hyperv.ghcb_base);
+			goto clean_guest_os_id;
+		}
 	}
 
 	rdmsrl(HV_X64_MSR_HYPERCALL, hypercall_msr.as_uint64);
@@ -323,7 +348,8 @@ void __init hyperv_init(void)
 
 	return;
 
-remove_cpuhp_state:
+clean_guest_os_id:
+	wrmsrl(HV_X64_MSR_GUEST_OS_ID, 0);
 	cpuhp_remove_state(cpuhp);
 free_vp_assist_page:
 	kfree(hv_vp_assist_page);
