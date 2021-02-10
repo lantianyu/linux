@@ -158,16 +158,20 @@ u64 hv_ghcb_hypercall(u64 control, void *input, void *output, u32 input_size)
 	if (!ms_hyperv.ghcb_base)
 		return -EFAULT;
 
-	hv_ghcb = (union hv_ghcb *)ms_hyperv.ghcb_base[smp_processor_id()];
-
-	memset(hv_ghcb, 0x00, PAGE_SIZE);
-
 	local_irq_save(flags);
 
+	hv_ghcb = (union hv_ghcb *)ms_hyperv.ghcb_base[smp_processor_id()];
+	if (!hv_ghcb) {
+		local_irq_restore(flags);
+		return -EFAULT;
+	}
+
+	memset(hv_ghcb, 0x00, PAGE_SIZE);
 	hv_ghcb->ghcb.protocol_version = 1;
 	hv_ghcb->ghcb.ghcb_usage = 1;
 
-	hv_ghcb->hypercall.outputgpa = (u64)output;
+	if (output)
+		hv_ghcb->hypercall.outputgpa = (u64)output;
 	hv_ghcb->hypercall.hypercallinput.asuint64 = 0;
 	hv_ghcb->hypercall.hypercallinput.callcode = control;
 
@@ -177,10 +181,12 @@ u64 hv_ghcb_hypercall(u64 control, void *input, void *output, u32 input_size)
 	VMGEXIT();
 
 	hv_ghcb->ghcb.ghcb_usage = 0xffffffff;
+
 	local_irq_restore(flags);
 
 	return hv_ghcb->hypercall.hypercalloutput.callstatus;
 }
+EXPORT_SYMBOL_GPL(hv_ghcb_hypercall);
 
 void hv_ghcb_msr_write(u64 msr, u64 value)
 {
@@ -190,11 +196,15 @@ void hv_ghcb_msr_write(u64 msr, u64 value)
 	if (!ms_hyperv.ghcb_base)
 		return;
 
+	local_irq_save(flags);
+
 	hv_ghcb = (union hv_ghcb *)ms_hyperv.ghcb_base[smp_processor_id()];
+	if (!hv_ghcb) {
+		local_irq_restore(flags);
+		return;
+	}
 
 	memset(hv_ghcb, 0x00, PAGE_SIZE);
-
-	local_irq_save(flags);
 
 	hv_ghcb->ghcb.protocol_version = 1;
 	hv_ghcb->ghcb.ghcb_usage = 0;
@@ -210,6 +220,7 @@ void hv_ghcb_msr_write(u64 msr, u64 value)
 
 	local_irq_restore(flags);
 }
+EXPORT_SYMBOL_GPL(hv_ghcb_msr_write);
 
 void hv_ghcb_msr_read(u64 msr, u64 *value)
 {
@@ -219,11 +230,15 @@ void hv_ghcb_msr_read(u64 msr, u64 *value)
 	if (!ms_hyperv.ghcb_base)
 		return;
 
+	local_irq_save(flags);
+
 	hv_ghcb = (union hv_ghcb *)ms_hyperv.ghcb_base[smp_processor_id()];
+	if (!hv_ghcb) {		
+		local_irq_restore(flags);
+		return;
+	}
 
 	memset(hv_ghcb, 0x00, PAGE_SIZE);
-
-	local_irq_save(flags);
 
 	hv_ghcb->ghcb.protocol_version = 1;
 	hv_ghcb->ghcb.ghcb_usage = 0;
@@ -240,6 +255,7 @@ void hv_ghcb_msr_read(u64 msr, u64 *value)
 		| ((u64)lower_32_bits(hv_ghcb->ghcb.save.rdx) << 32);
 	local_irq_restore(flags);
 }
+EXPORT_SYMBOL_GPL(hv_ghcb_msr_read);
 
 void hv_sint_rdmsrl_ghcb(u64 msr, u64 *value)
 {
