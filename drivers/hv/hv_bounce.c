@@ -359,7 +359,9 @@ static struct hv_bounce_page_list *hv_bounce_page_assign(
 {
 	struct hv_bounce_page_list *bounce_page = NULL;
 	unsigned long flags;
+	int ret;
 
+retry:
 	spin_lock_irqsave(&channel->bp_lock, flags);
 	if (!list_empty(&channel->bounce_page_free_head)) {
 		bounce_page = list_first_entry(&channel->bounce_page_free_head,
@@ -371,10 +373,18 @@ static struct hv_bounce_page_list *hv_bounce_page_assign(
 
 	if (likely(bounce_page)) {
 		return bounce_page;
-	} else {
-		pr_warn("Bounce buffer exhausts.\n");
+	} else if (in_interrupt()) {
+		pr_warn("Reserve bounce buffer is not enought.\n");
 		return NULL;
 	}
+
+ 	ret = hv_bounce_page_list_alloc(channel, HV_MIN_BOUNCE_BUFFER_PAGES);
+	if (unlikely(ret < 0)) {
+		pr_warn("Faile to alloc bounce page\n");
+		return NULL;
+	}
+
+	goto retry;
 }
 
 /*
@@ -547,9 +557,6 @@ int vmbus_sendpacket_pagebuffer_bounce(
 	struct hv_bounce_pkt *bounce_pkt;
 	int ret;
 
-	if (channel->primary_channel)
-		channel = channel->primary_channel;
-
 	BUILD_BUG_ON(sizeof(struct hv_page_range) !=
 		     sizeof(struct hv_page_buffer));
 	bounce_pkt = hv_bounce_resources_assign(channel, desc->rangecount,
@@ -590,9 +597,6 @@ int vmbus_sendpacket_mpb_desc_bounce(
 	if (unlikely(!desc_bounce))
 		return ret;
 
-	if (channel->primary_channel)
-		channel = channel->primary_channel;
-
 	memcpy(desc_bounce, desc, desc_size);
 	range = &desc_bounce->range;
 	bounce_pkt = hv_bounce_resources_assign(channel, desc->rangecount,
@@ -616,9 +620,6 @@ void hv_pkt_bounce(struct vmbus_channel *channel,
 	if (!bounce_pkt)
 		return;
 
-	if (channel->primary_channel)
-		channel = channel->primary_channel;
-
 	hv_copy_from_bounce(bounce_pkt);
 	hv_bounce_resources_release(channel, bounce_pkt);
 }
@@ -627,14 +628,6 @@ EXPORT_SYMBOL_GPL(hv_pkt_bounce);
 int hv_init_channel_ivm(struct vmbus_channel *channel)
 {
 	if (!hv_is_isolation_supported())
-		return 0;
-
-	/*
-	 * Now bounce bufferes are allocated in the primary
-	 * channel. Will change to per-channel allocation when
-	 * IVM SMP support is available.
-	 */
-	if (channel->primary_channel)
 		return 0;
 
 	INIT_DELAYED_WORK(&channel->bounce_page_list_maintain,
@@ -660,9 +653,6 @@ void hv_free_channel_ivm(struct vmbus_channel *channel)
 		return;
 
 	cancel_delayed_work_sync(&channel->bounce_page_list_maintain);
-
-	if (channel->primary_channel)
-		return;
 
 	hv_bounce_pkt_list_free(channel, &channel->bounce_pkt_free_list_head);
 	hv_bounce_page_list_free(channel, &channel->bounce_page_free_head);
