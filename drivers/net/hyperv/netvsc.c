@@ -119,8 +119,21 @@ static void free_netvsc_device(struct rcu_head *head)
 	int i;
 
 	kfree(nvdev->extension);
-	vfree(nvdev->recv_buf);
-	vfree(nvdev->send_buf);
+
+	if (nvdev->recv_original_buf) {
+		iounmap(nvdev->recv_buf);
+		vfree(nvdev->recv_original_buf);
+	} else {
+		vfree(nvdev->recv_buf);
+	}
+
+	if (nvdev->send_original_buf) {
+		iounmap(nvdev->send_buf);
+		vfree(nvdev->send_original_buf);
+	} else {
+		vfree(nvdev->send_buf);
+	}
+
 	kfree(nvdev->send_section_map);
 
 	for (i = 0; i < VRSS_CHANNEL_MAX; i++) {
@@ -355,10 +368,15 @@ static int netvsc_init_buf(struct hv_device *device,
 		for (i = 0; i < buf_size / HV_HYP_PAGE_SIZE; i++) {
 			extra_phys = (virt_to_hvpfn(net_device->recv_buf + i * HV_HYP_PAGE_SIZE)
 				<< HV_HYP_PAGE_SHIFT) + ms_hyperv.shared_gpa_boundary;
-			ioremap_page_range(vaddr + i * HV_HYP_PAGE_SIZE,
+			ret |= ioremap_page_range(vaddr + i * HV_HYP_PAGE_SIZE,
 					   vaddr + (i + 1) * HV_HYP_PAGE_SIZE,
 					   extra_phys, PAGE_KERNEL_IO);
 		}
+
+		if (ret)
+			goto cleanup;
+
+		net_device->send_original_buf = net_device->send_buf;
 		net_device->recv_buf = (void*)vaddr;
 	}
 
@@ -440,6 +458,7 @@ static int netvsc_init_buf(struct hv_device *device,
 		ret = -ENOMEM;
 		goto cleanup;
 	}
+	net_device->send_buf_size = buf_size;
 
 	/* Establish the gpadl handle for this buffer on this
 	 * channel.  Note: This call uses the vmbus connection rather
