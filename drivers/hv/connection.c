@@ -141,21 +141,21 @@ int vmbus_negotiate_version(struct vmbus_channel_msginfo *msginfo, u32 version)
 	}
 
 	if (hv_isolation_type_snp()) {
+		vmbus_connection.monitor_pages_va[0]
+			= vmbus_connection.monitor_pages[0];
 		vmbus_connection.monitor_pages[0]
 			= ioremap_cache(msg->monitor_page1, PAGE_SIZE);
 		if (!vmbus_connection.monitor_pages[0])
-			return -ENOMEM;
-		vmbus_connection.monitor_pages_va[0]
-			= vmbus_connection.monitor_pages[0];
-		
+			return -ENOMEM;	
+
+		vmbus_connection.monitor_pages_va[1]
+			= vmbus_connection.monitor_pages[1];
 		vmbus_connection.monitor_pages[1]
 			= ioremap_cache(msg->monitor_page2, PAGE_SIZE);
 		if (!vmbus_connection.monitor_pages[1]) {
 			vunmap(vmbus_connection.monitor_pages[0]);
 			return -ENOMEM;
 		}
-		vmbus_connection.monitor_pages_va[1]
-			= vmbus_connection.monitor_pages[1];
 
 		memset(vmbus_connection.monitor_pages[0], 0x00, PAGE_SIZE);
 		memset(vmbus_connection.monitor_pages[1], 0x00, PAGE_SIZE);		
