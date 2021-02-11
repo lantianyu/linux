@@ -670,6 +670,7 @@ static void handle_sc_creation(struct vmbus_channel *new_sc)
 	/* Add the sub-channel to the array of available channels. */
 	stor_device->stor_chns[new_sc->target_cpu] = new_sc;
 	cpumask_set_cpu(new_sc->target_cpu, &stor_device->alloced_cpus);
+	hv_bounce_resources_reserve(new_sc, stor_device->max_transfer_bytes);
 }
 
 static void  handle_multichannel_storage(struct hv_device *device, int max_chns)
@@ -918,7 +919,7 @@ static int storvsc_channel_init(struct hv_device *device, bool is_fc)
 	 * additional resources to be allocated.
 	 */
 	ret =  hv_bounce_resources_reserve(device->channel,
-			stor_device->max_transfer_bytes * 20);
+			stor_device->max_transfer_bytes);
 	if (ret < 0)
 		return ret;
 
