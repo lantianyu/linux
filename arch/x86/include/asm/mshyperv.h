@@ -239,6 +239,7 @@ bool hv_vcpu_is_preempted(int vcpu);
 static inline void hv_apic_init(void) {}
 #endif
 
+int hv_set_mem_host_visibility(void *kbuffer, u32 size, u32 visibility);
 int hv_mark_gpa_visibility(u16 count, const u64 pfn[], u32 visibility);
 void hv_sint_wrmsrl_ghcb(u64 msr, u64 value);
 void hv_sint_rdmsrl_ghcb(u64 msr, u64 *value);

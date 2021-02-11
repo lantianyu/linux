@@ -256,10 +256,18 @@ static void netvsc_teardown_recv_gpadl(struct hv_device *device,
 				       struct net_device *ndev)
 {
 	int ret;
+	void *recv_buf;
 
 	if (net_device->recv_buf_gpadl_handle) {
+		if (net_device->recv_original_buf)
+			recv_buf = net_device->recv_original_buf;
+		else
+			recv_buf = net_device->recv_buf;
+
 		ret = vmbus_teardown_gpadl(device->channel,
-					   net_device->recv_buf_gpadl_handle);
+					   net_device->recv_buf_gpadl_handle,
+					   recv_buf,
+					   net_device->recv_buf_size);
 
 		/* If we failed here, we might as well return and have a leak
 		 * rather than continue and a bugchk
@@ -278,10 +286,18 @@ static void netvsc_teardown_send_gpadl(struct hv_device *device,
 				       struct net_device *ndev)
 {
 	int ret;
+	void *send_buf;
 
 	if (net_device->send_buf_gpadl_handle) {
+		if (net_device->send_original_buf)
+			send_buf = net_device->send_original_buf;
+		else
+			send_buf = net_device->send_buf;
+
 		ret = vmbus_teardown_gpadl(device->channel,
-					   net_device->send_buf_gpadl_handle);
+					   net_device->send_buf_gpadl_handle,
+					   send_buf,
+					   net_device->send_buf_size);
 
 		/* If we failed here, we might as well return and have a leak
 		 * rather than continue and a bugchk
@@ -469,7 +485,7 @@ static int netvsc_init_buf(struct hv_device *device,
 	ret = vmbus_establish_gpadl(device->channel, net_device->send_buf,
 				    buf_size,
 				    &net_device->send_buf_gpadl_handle,
-				    VMBUS_PAGE_VISIBLE_READ_WRITE);
+				    VMBUS_PAGE_VISIBLE_READ_WRITE);	
 	if (ret != 0) {
 		netdev_err(ndev,
 			   "unable to establish send buffer's gpadl\n");
