@@ -1274,6 +1274,8 @@ static void netvsc_sc_open(struct vmbus_channel *new_sc)
 
 	if (atomic_inc_return(&nvscdev->open_chn) == nvscdev->num_chn)
 		wake_up(&nvscdev->subchan_open);
+
+	hv_bounce_resources_reserve(new_sc, 4 * PAGE_SIZE * 1024);
 }
 
 /* Open sub-channels after completing the handling of the device probe.

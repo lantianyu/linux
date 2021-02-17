@@ -562,7 +562,7 @@ int vmbus_sendpacket_pagebuffer_bounce(
 	bounce_pkt = hv_bounce_resources_assign(channel, desc->rangecount,
 			(struct hv_page_range *)desc->range, io_type);
 	if (unlikely(!bounce_pkt))
-		return -ENOSPC;
+		return -EAGAIN;
 	ret = hv_ringbuffer_write(channel, bufferlist, 3, requestid);
 	if (unlikely(ret < 0))
 		hv_bounce_resources_release(channel, bounce_pkt);
