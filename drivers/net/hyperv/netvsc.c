@@ -814,9 +814,9 @@ static void netvsc_send_tx_complete(struct net_device *ndev,
 		tx_stats->bytes += packet->total_bytes;
 		u64_stats_update_end(&tx_stats->syncp);
 
-		napi_consume_skb(skb, budget);
 		if (desc->type == VM_PKT_COMP && packet->bounce_pkt)
 			hv_pkt_bounce(channel, packet->bounce_pkt);
+		napi_consume_skb(skb, budget);
 	}
 
 	queue_sends =
