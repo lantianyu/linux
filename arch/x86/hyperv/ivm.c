@@ -150,6 +150,26 @@ union hv_ghcb {
 	} hypercall;
 } __attribute__ ((__packed__)) __attribute__ ((aligned(PAGE_SIZE)));
 
+/* GHCB Accessor functions */
+
+#define GHCB_BITMAP_IDX(field)							\
+	(offsetof(struct vmcb_save_area, field) / sizeof(u64))
+
+#define DEFINE_GHCB_ACCESSORS(field)						\
+	static inline void ghcb_set_##field(struct ghcb *ghcb, u64 value)	\
+	{									\
+		__set_bit(GHCB_BITMAP_IDX(field),				\
+			  (unsigned long *)&ghcb->save.valid_bitmap);		\
+		ghcb->save.field = value;					\
+	}
+
+DEFINE_GHCB_ACCESSORS(rax)
+DEFINE_GHCB_ACCESSORS(rcx)
+DEFINE_GHCB_ACCESSORS(rdx)
+DEFINE_GHCB_ACCESSORS(sw_exit_code)
+DEFINE_GHCB_ACCESSORS(sw_exit_info_1)
+DEFINE_GHCB_ACCESSORS(sw_exit_info_2)
+
 u64 hv_ghcb_hypercall(u64 control, void *input, void *output, u32 input_size)
 {
 	union hv_ghcb *hv_ghcb;
@@ -209,14 +229,17 @@ void hv_ghcb_msr_write(u64 msr, u64 value)
 	hv_ghcb->ghcb.protocol_version = 1;
 	hv_ghcb->ghcb.ghcb_usage = 0;
 
-	hv_ghcb->ghcb.save.sw_exit_code = 0x7c;
-	hv_ghcb->ghcb.save.rcx = msr;
-	hv_ghcb->ghcb.save.rax = lower_32_bits(value);
-	hv_ghcb->ghcb.save.rdx = value >> 32;
-	hv_ghcb->ghcb.save.sw_exit_info_1 = 1;
-	hv_ghcb->ghcb.save.sw_exit_info_2 = 0;
+	ghcb_set_sw_exit_code(&hv_ghcb->ghcb, 0x7c);
+	ghcb_set_rcx(&hv_ghcb->ghcb, msr);
+	ghcb_set_rax(&hv_ghcb->ghcb, lower_32_bits(value));
+	ghcb_set_rdx(&hv_ghcb->ghcb, value >> 32);
+	ghcb_set_sw_exit_info_1(&hv_ghcb->ghcb, 1);
+	ghcb_set_sw_exit_info_2(&hv_ghcb->ghcb, 0);
 
 	VMGEXIT();
+
+	if ((hv_ghcb->ghcb.save.sw_exit_info_1 & 0xffffffff) == 1)
+		pr_warn("Fail to write msr via ghcb\n.");
 
 	local_irq_restore(flags);
 }
@@ -243,16 +266,19 @@ void hv_ghcb_msr_read(u64 msr, u64 *value)
 	hv_ghcb->ghcb.protocol_version = 1;
 	hv_ghcb->ghcb.ghcb_usage = 0;
 
-	hv_ghcb->ghcb.save.sw_exit_code = 0x7c;
-	hv_ghcb->ghcb.save.rcx = msr;
-
-	hv_ghcb->ghcb.save.sw_exit_info_1 = 0;
-	hv_ghcb->ghcb.save.sw_exit_info_2 = 0;
+	ghcb_set_sw_exit_code(&hv_ghcb->ghcb, 0x7c);
+	ghcb_set_rcx(&hv_ghcb->ghcb, msr);
+	ghcb_set_sw_exit_info_1(&hv_ghcb->ghcb, 0);
+	ghcb_set_sw_exit_info_2(&hv_ghcb->ghcb, 0);
 
 	VMGEXIT();
 
-	*value = (u64)lower_32_bits(hv_ghcb->ghcb.save.rax)
-		| ((u64)lower_32_bits(hv_ghcb->ghcb.save.rdx) << 32);
+	if ((hv_ghcb->ghcb.save.sw_exit_info_1 & 0xffffffff) == 1)
+		pr_warn("Fail to read msr via ghcb.\n.");
+	else
+		*value = (u64)lower_32_bits(hv_ghcb->ghcb.save.rax)
+			| ((u64)lower_32_bits(hv_ghcb->ghcb.save.rdx) << 32);
+
 	local_irq_restore(flags);
 }
 EXPORT_SYMBOL_GPL(hv_ghcb_msr_read);
