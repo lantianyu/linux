@@ -23,6 +23,7 @@
 #include <linux/bitops.h>
 #include <linux/cpumask.h>
 #include <asm/ptrace.h>
+#include <asm/mshyperv.h>
 #include <asm/hyperv-tlfs.h>
 
 struct ms_hyperv_info {
@@ -52,7 +53,7 @@ extern struct ms_hyperv_info ms_hyperv;
 
 extern u64 hv_do_hypercall(u64 control, void *inputaddr, void *outputaddr);
 extern u64 hv_do_fast_hypercall8(u16 control, u64 input8);
-
+extern bool hv_isolation_type_snp(void);
 
 /* Generate the guest OS identifier as described in the Hyper-V TLFS */
 static inline  __u64 generate_guest_id(__u64 d_info1, __u64 kernel_version,
@@ -186,6 +187,7 @@ bool hv_is_hyperv_initialized(void);
 bool hv_is_hibernation_supported(void);
 enum hv_isolation_type hv_get_isolation_type(void);
 bool hv_is_isolation_supported(void);
+bool hv_isolation_type_snp(void);
 void hyperv_cleanup(void);
 #else /* CONFIG_HYPERV */
 static inline bool hv_is_hyperv_initialized(void) { return false; }
