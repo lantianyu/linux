@@ -341,25 +341,6 @@ static struct syscore_ops hv_syscore_ops = {
 	.resume		= hv_resume,
 };
 
-static void (* __initdata old_setup_percpu_clockev)(void);
-
-static void __init hv_stimer_setup_percpu_clockev(void)
-{
-	/*
-	 * Ignore any errors in setting up stimer clockevents
-	 * as we can run with the LAPIC timer as a fallback.
-	 */
-	(void)hv_stimer_alloc();
-
-	/*
-	 * Still register the LAPIC timer, because the direct-mode STIMER is
-	 * not supported by old versions of Hyper-V. This also allows users
-	 * to switch to LAPIC timer via /sys, if they want to.
-	 */
-	if (old_setup_percpu_clockev)
-		old_setup_percpu_clockev();
-}
-
 static void __init hv_get_partition_id(void)
 {
 	struct hv_get_partition_id *output_page;
