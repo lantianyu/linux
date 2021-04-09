@@ -29,6 +29,8 @@
 #include <asm/proto.h>
 #include <asm/memtype.h>
 #include <asm/set_memory.h>
+#include <asm/hyperv-tlfs.h>
+#include <asm/mshyperv.h>
 
 #include "../mm_internal.h"
 
@@ -1986,8 +1988,14 @@ static int __set_memory_enc_dec(unsigned long addr, int numpages, bool enc)
 	int ret;
 
 	/* Nothing to do if memory encryption is not active */
-	if (!mem_encrypt_active())
+	if (hv_is_isolation_supported()) {
+		return hv_set_mem_host_visibility((void *)addr,
+				numpages * HV_HYP_PAGE_SIZE,
+				enc ? VMBUS_PAGE_NOT_VISIBLE
+				: VMBUS_PAGE_VISIBLE_READ_WRITE);
+	} else if (!mem_encrypt_active()) {
 		return 0;
+	}
 
 	/* Should not be working on unaligned addresses */
 	if (WARN_ONCE(addr & ~PAGE_MASK, "misaligned address: %#lx\n", addr))

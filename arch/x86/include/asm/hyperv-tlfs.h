@@ -262,6 +262,17 @@ enum hv_isolation_type {
 #define HV_X64_MSR_TIME_REF_COUNT	HV_REGISTER_TIME_REF_COUNT
 #define HV_X64_MSR_REFERENCE_TSC	HV_REGISTER_REFERENCE_TSC
 
+/* Hyper-V GPA map flags */
+#define HV_MAP_GPA_PERMISSIONS_NONE            0x0
+#define HV_MAP_GPA_READABLE                    0x1
+#define HV_MAP_GPA_WRITABLE                    0x2
+
+enum vmbus_page_visibility {
+	VMBUS_PAGE_NOT_VISIBLE = 0,
+	VMBUS_PAGE_VISIBLE_READ_ONLY = 1,
+	VMBUS_PAGE_VISIBLE_READ_WRITE = 3
+};
+
 /*
  * Declare the MSR used to setup pages used to communicate with the hypervisor.
  */
@@ -560,5 +571,18 @@ enum hv_interrupt_type {
 };
 
 #include <asm-generic/hyperv-tlfs.h>
+
+/* All input parameters should be in single page. */
+#define HV_MAX_MODIFY_GPA_REP_COUNT		\
+	((PAGE_SIZE / sizeof(u64)) - 2)
+
+/* HvCallModifySparseGpaPageHostVisibility hypercall */
+struct hv_gpa_range_for_visibility {
+	u64 partition_id;
+	u32 host_visibility:2;
+	u32 reserved0:30;
+	u32 reserved1;
+	u64 gpa_page_list[HV_MAX_MODIFY_GPA_REP_COUNT];
+} __packed;
 
 #endif
