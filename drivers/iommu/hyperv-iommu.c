@@ -13,18 +13,27 @@
 #include <linux/irq.h>
 #include <linux/iommu.h>
 #include <linux/module.h>
+#include <linux/hyperv.h>
 
+#include <asm/io.h>
 #include <asm/apic.h>
 #include <asm/cpu.h>
 #include <asm/hw_irq.h>
 #include <asm/io_apic.h>
+#include <asm/iommu.h>
+#include <asm/iommu_table.h>
 #include <asm/irq_remapping.h>
 #include <asm/hypervisor.h>
 #include <asm/mshyperv.h>
+#include <asm/swiotlb.h>
+#include <linux/dma-map-ops.h>
+#include <linux/dma-direct.h>
 
 #include "irq_remapping.h"
 
 #ifdef CONFIG_IRQ_REMAP
+
+int hyperv_swiotlb __read_mostly;
 
 /*
  * According 82093AA IO-APIC spec , IO APIC has a 24-entry Interrupt
@@ -35,6 +44,10 @@
 
 static cpumask_t ioapic_max_cpumask = { CPU_BITS_NONE };
 static struct irq_domain *ioapic_ir_domain;
+
+static unsigned long hyperv_io_tlb_start, *hyperv_io_tlb_end; 
+static unsigned long hyperv_io_tlb_nslabs, hyperv_io_tlb_size;
+static void *hyperv_io_tlb_remap;
 
 static int hyperv_ir_set_affinity(struct irq_data *data,
 		const struct cpumask *mask, bool force)
@@ -336,5 +349,119 @@ static const struct irq_domain_ops hyperv_root_ir_domain_ops = {
 	.alloc = hyperv_root_irq_remapping_alloc,
 	.free = hyperv_root_irq_remapping_free,
 };
+
+static dma_addr_t hyperv_map_page(struct device *dev, struct page *page,
+				  unsigned long offset, size_t size,
+				  enum dma_data_direction dir,
+				  unsigned long attrs)
+{
+	phys_addr_t map, phys = (page_to_pfn(page) << PAGE_SHIFT) + offset;
+
+	if (!hv_is_isolation_supported())
+		return phys;
+
+	map = swiotlb_tbl_map_single(dev, phys, size, HV_HYP_PAGE_SIZE, dir,
+				     attrs);
+	if (map == (phys_addr_t)DMA_MAPPING_ERROR)
+		return DMA_MAPPING_ERROR;
+
+	return map;
+}
+
+static void hyperv_unmap_page(struct device *dev, dma_addr_t dev_addr,
+		size_t size, enum dma_data_direction dir, unsigned long attrs)
+{
+	if (!hv_is_isolation_supported())
+		return;
+
+	swiotlb_tbl_unmap_single(dev, dev_addr, size, HV_HYP_PAGE_SIZE, dir,
+				attrs);
+}
+
+int __init hyperv_swiotlb_init(void)
+{
+	unsigned long bytes;
+	void *vstart = 0;
+
+	bytes = 200 * 1024 * 1024;
+	vstart = memblock_alloc_low(PAGE_ALIGN(bytes), PAGE_SIZE);
+	hyperv_io_tlb_nslabs = bytes >> IO_TLB_SHIFT;
+	hyperv_io_tlb_size = bytes;
+
+	if (!vstart) {
+		pr_warn("Fail to allocate swiotlb.\n");
+		return -ENOMEM;
+	}
+
+	hyperv_io_tlb_start = virt_to_phys(vstart);
+	if (!hyperv_io_tlb_start)
+		panic("%s: Failed to allocate %lu bytes align=0x%lx.\n",
+		      __func__, PAGE_ALIGN(bytes), PAGE_SIZE);
+
+	if (swiotlb_init_with_tbl(vstart, hyperv_io_tlb_nslabs, 1))
+		panic("%s: Cannot allocate SWIOTLB buffer.\n", __func__);
+
+	swiotlb_set_max_segment(PAGE_SIZE);
+	hyperv_io_tlb_end = hyperv_io_tlb_start + bytes;
+	return 0;
+}
+
+const struct dma_map_ops hyperv_dma_ops = {
+	.map_page = hyperv_map_page,
+	.unmap_page = hyperv_unmap_page,
+};
+
+int __init hyperv_swiotlb_detect(void)
+{
+	dma_ops = &hyperv_dma_ops;
+
+	if (hypervisor_is_type(X86_HYPER_MS_HYPERV)
+	    && hv_is_isolation_supported()) {
+		/*
+		 * Disable generic swiotlb and allocate Hyper-v swiotlb
+		 * in the hyperv_iommu_swiotlb_init().
+		 */
+		swiotlb = 0;
+		hyperv_swiotlb = 1;
+
+		return 1;
+	}
+
+	return 0;
+}
+
+void __init hyperv_iommu_swiotlb_init(void)
+{
+	hyperv_swiotlb_init();
+}
+
+void __init hyperv_iommu_swiotlb_later_init(void)
+{
+	int ret;
+
+	/* Mask bounce buffer visible to host and remap extra address. */
+	if (hv_isolation_type_snp()) {
+		ret = hv_set_mem_host_visibility(
+				phys_to_virt(hyperv_io_tlb_start),
+				hyperv_io_tlb_size,
+				VMBUS_PAGE_VISIBLE_READ_WRITE);
+		if (ret)
+			panic("%s: Fail to mark Hyper-v swiotlb buffer visible to host. err=%d\n",
+			      __func__, ret);
+
+		hyperv_io_tlb_remap = ioremap_cache(hyperv_io_tlb_start
+					    + ms_hyperv.shared_gpa_boundary,
+						    hyperv_io_tlb_size);
+		if (!hyperv_io_tlb_remap)
+			panic("%s: Fail to remap io tlb.\n", __func__);
+
+		memset(hyperv_io_tlb_remap, 0x00, hyperv_io_tlb_size);
+		swiotlb_set_bounce_remap(hyperv_io_tlb_remap);
+	}
+}
+
+IOMMU_INIT_FINISH(hyperv_swiotlb_detect,
+		  NULL, hyperv_iommu_swiotlb_init,
+		  hyperv_iommu_swiotlb_later_init);
 
 #endif

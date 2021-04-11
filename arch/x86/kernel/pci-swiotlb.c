@@ -15,6 +15,7 @@
 #include <asm/iommu_table.h>
 
 int swiotlb __read_mostly;
+extern int hyperv_swiotlb;
 
 /*
  * pci_swiotlb_detect_override - set swiotlb to 1 if necessary
@@ -68,7 +69,7 @@ void __init pci_swiotlb_init(void)
 void __init pci_swiotlb_late_init(void)
 {
 	/* An IOMMU turned us off. */
-	if (!swiotlb)
+	if (!swiotlb && !hyperv_swiotlb)
 		swiotlb_exit();
 	else {
 		printk(KERN_INFO "PCI-DMA: "
