@@ -26,6 +26,7 @@
 
 #include "hyperv_net.h"
 #include "netvsc_trace.h"
+#include "../../hv/hyperv_vmbus.h"
 
 /*
  * Switch the data path from the synthetic interface to the VF
@@ -119,8 +120,21 @@ static void free_netvsc_device(struct rcu_head *head)
 	int i;
 
 	kfree(nvdev->extension);
-	vfree(nvdev->recv_buf);
-	vfree(nvdev->send_buf);
+
+	if (nvdev->recv_original_buf) {
+		iounmap(nvdev->recv_buf);
+		vfree(nvdev->recv_original_buf);
+	} else {
+		vfree(nvdev->recv_buf);
+	}
+
+	if (nvdev->send_original_buf) {
+		iounmap(nvdev->send_buf);
+		vfree(nvdev->send_original_buf);
+	} else {
+		vfree(nvdev->send_buf);
+	}
+
 	kfree(nvdev->send_section_map);
 
 	for (i = 0; i < VRSS_CHANNEL_MAX; i++) {
@@ -302,9 +316,12 @@ static int netvsc_init_buf(struct hv_device *device,
 	struct nvsp_1_message_send_receive_buffer_complete *resp;
 	struct net_device *ndev = hv_get_drvdata(device);
 	struct nvsp_message *init_packet;
+	struct vm_struct *area;
+	u64 extra_phys;
 	unsigned int buf_size;
+	unsigned long vaddr;
 	size_t map_words;
-	int ret = 0;
+	int ret = 0, i;
 
 	/* Get receive buffer area. */
 	buf_size = device_info->recv_sections * device_info->recv_section_size;
@@ -338,6 +355,27 @@ static int netvsc_init_buf(struct hv_device *device,
 		netdev_err(ndev,
 			"unable to establish receive buffer's gpadl\n");
 		goto cleanup;
+	}
+
+	if (hv_isolation_type_snp()) {
+		area = get_vm_area(buf_size, VM_IOREMAP);
+		if (!area)
+			goto cleanup;
+
+		vaddr = (unsigned long)area->addr;
+		for (i = 0; i < buf_size / HV_HYP_PAGE_SIZE; i++) {
+			extra_phys = (virt_to_hvpfn(net_device->recv_buf + i * HV_HYP_PAGE_SIZE)
+				<< HV_HYP_PAGE_SHIFT) + ms_hyperv.shared_gpa_boundary;
+			ret |= ioremap_page_range(vaddr + i * HV_HYP_PAGE_SIZE,
+					   vaddr + (i + 1) * HV_HYP_PAGE_SIZE,
+					   extra_phys, PAGE_KERNEL_IO);
+		}
+
+		if (ret)
+			goto cleanup;
+
+		net_device->recv_original_buf = net_device->recv_buf;
+		net_device->recv_buf = (void *)vaddr;
 	}
 
 	/* Notify the NetVsp of the gpadl handle */
@@ -430,6 +468,28 @@ static int netvsc_init_buf(struct hv_device *device,
 		netdev_err(ndev,
 			   "unable to establish send buffer's gpadl\n");
 		goto cleanup;
+	}
+
+	if (hv_isolation_type_snp()) {
+		area = get_vm_area(buf_size, VM_IOREMAP);
+		if (!area)
+			goto cleanup;
+
+		vaddr = (unsigned long)area->addr;
+
+		for (i = 0; i < buf_size / HV_HYP_PAGE_SIZE; i++) {
+			extra_phys = (virt_to_hvpfn(net_device->send_buf + i * HV_HYP_PAGE_SIZE)
+				<< HV_HYP_PAGE_SHIFT) + ms_hyperv.shared_gpa_boundary;
+			ret |= ioremap_page_range(vaddr + i * HV_HYP_PAGE_SIZE,
+					   vaddr + (i + 1) * HV_HYP_PAGE_SIZE,
+					   extra_phys, PAGE_KERNEL_IO);
+		}
+
+		if (ret)
+			goto cleanup;
+
+		net_device->send_original_buf = net_device->send_buf;
+		net_device->send_buf = (void *)vaddr;
 	}
 
 	/* Notify the NetVsp of the gpadl handle */
@@ -722,7 +782,7 @@ static void netvsc_send_tx_complete(struct net_device *ndev,
 
 	/* Notify the layer above us */
 	if (likely(skb)) {
-		const struct hv_netvsc_packet *packet
+		struct hv_netvsc_packet *packet
 			= (struct hv_netvsc_packet *)skb->cb;
 		u32 send_index = packet->send_buf_index;
 		struct netvsc_stats *tx_stats;
@@ -738,6 +798,7 @@ static void netvsc_send_tx_complete(struct net_device *ndev,
 		tx_stats->bytes += packet->total_bytes;
 		u64_stats_update_end(&tx_stats->syncp);
 
+		netvsc_dma_unmap(ndev_ctx->device_ctx, packet);
 		napi_consume_skb(skb, budget);
 	}
 
@@ -878,6 +939,60 @@ static void netvsc_copy_to_send_buf(struct netvsc_device *net_device,
 		memset(dest, 0, padding);
 }
 
+void netvsc_dma_unmap(struct hv_device *hv_dev,
+		      struct hv_netvsc_packet *packet)
+{
+	u32 page_count = packet->cp_partial ?
+		packet->page_buf_cnt - packet->rmsg_pgcnt :
+		packet->page_buf_cnt;
+	int i;
+
+	if (!packet->dma_range)
+		return;
+
+	for (i = 0; i < page_count; i++)
+		dma_unmap_single(&hv_dev->device, packet->dma_range[i].dma,
+				 packet->dma_range[i].mapping_size,
+				 DMA_TO_DEVICE);
+
+	kfree(packet->dma_range);
+}
+
+int netvsc_dma_map(struct hv_device *hv_dev,
+		   struct hv_netvsc_packet *packet,
+		   struct hv_page_buffer *pb)
+{
+	u32 page_count =  packet->cp_partial ?
+		packet->page_buf_cnt - packet->rmsg_pgcnt :
+		packet->page_buf_cnt;
+	dma_addr_t dma;
+	int i;
+
+	packet->dma_range = kzalloc(sizeof(struct dma_range) * page_count,
+			      GFP_KERNEL);
+	if (!packet->dma_range)
+		return -ENOMEM;
+
+	for (i = 0; i < page_count; i++) {
+		char *src = phys_to_virt((pb[i].pfn << HV_HYP_PAGE_SHIFT)
+					 + pb[i].offset);
+		u32 len = pb[i].len;
+
+		dma = dma_map_single(&hv_dev->device, src, len,
+				     DMA_TO_DEVICE);
+		if (dma_mapping_error(&hv_dev->device, dma))
+			return -ENOMEM;
+
+		packet->dma_range[i].dma = dma;
+		packet->dma_range[i].mapping_size = len;
+		pb[i].pfn = dma >> HV_HYP_PAGE_SHIFT;
+		pb[i].offset = offset_in_hvpage(dma);
+		pb[i].len = len;
+	}
+
+	return 0;
+}
+
 static inline int netvsc_send_pkt(
 	struct hv_device *device,
 	struct hv_netvsc_packet *packet,
@@ -917,14 +1032,22 @@ static inline int netvsc_send_pkt(
 
 	trace_nvsp_send_pkt(ndev, out_channel, rpkt);
 
+	packet->dma_range = NULL;
 	if (packet->page_buf_cnt) {
 		if (packet->cp_partial)
 			pb += packet->rmsg_pgcnt;
 
+		ret = netvsc_dma_map(ndev_ctx->device_ctx, packet, pb);
+		if (ret)
+			return ret;
+
 		ret = vmbus_sendpacket_pagebuffer(out_channel,
-						  pb, packet->page_buf_cnt,
-						  &nvmsg, sizeof(nvmsg),
-						  req_id);
+					  pb, packet->page_buf_cnt,
+					  &nvmsg, sizeof(nvmsg),
+					  req_id);
+
+		if (ret)
+			netvsc_dma_unmap(ndev_ctx->device_ctx, packet);
 	} else {
 		ret = vmbus_sendpacket(out_channel,
 				       &nvmsg, sizeof(nvmsg),
