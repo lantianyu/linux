@@ -2577,6 +2577,7 @@ static int netvsc_probe(struct hv_device *dev,
 	list_add(&net_device_ctx->list, &netvsc_dev_list);
 	rtnl_unlock();
 
+	dma_set_min_align_mask(&dev->device, HV_HYP_PAGE_SIZE - 1);
 	netvsc_devinfo_put(device_info);
 	return 0;
 
