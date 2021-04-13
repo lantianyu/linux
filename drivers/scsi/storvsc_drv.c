@@ -21,6 +21,8 @@
 #include <linux/device.h>
 #include <linux/hyperv.h>
 #include <linux/blkdev.h>
+#include <linux/io.h>
+#include <linux/dma-mapping.h>
 #include <scsi/scsi.h>
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_host.h>
@@ -414,6 +416,11 @@ static void storvsc_on_channel_callback(void *context);
 #define STORVSC_IDE_MAX_TARGETS				1
 #define STORVSC_IDE_MAX_CHANNELS			1
 
+struct dma_range {
+	dma_addr_t dma;
+	u32 mapping_size;
+};
+
 struct storvsc_cmd_request {
 	struct scsi_cmnd *cmd;
 
@@ -427,6 +434,8 @@ struct storvsc_cmd_request {
 	u32 payload_sz;
 
 	struct vstor_packet vstor_packet;
+	u32 hvpg_count;
+	struct dma_range *dma_range;
 };
 
 
@@ -1236,6 +1245,7 @@ static void storvsc_on_channel_callback(void *context)
 	const struct vmpacket_descriptor *desc;
 	struct hv_device *device;
 	struct storvsc_device *stor_device;
+	int i;
 
 	if (channel->primary_channel != NULL)
 		device = channel->primary_channel->device_obj;
@@ -1249,6 +1259,8 @@ static void storvsc_on_channel_callback(void *context)
 	foreach_vmbus_pkt(desc, channel) {
 		void *packet = hv_pkt_data(desc);
 		struct storvsc_cmd_request *request;
+		enum dma_data_direction dir;
+		u32 attrs;
 		u64 cmd_rqst;
 
 		cmd_rqst = vmbus_request_addr(&channel->requestor,
@@ -1260,6 +1272,22 @@ static void storvsc_on_channel_callback(void *context)
 		}
 
 		request = (struct storvsc_cmd_request *)(unsigned long)cmd_rqst;
+
+		if (request->vstor_packet.vm_srb.data_in == READ_TYPE)
+			dir = DMA_FROM_DEVICE;
+		 else
+			dir = DMA_TO_DEVICE;
+
+		if (request->dma_range) {
+			for (i = 0; i < request->hvpg_count; i++)
+				dma_unmap_page_attrs(&device->device,
+						request->dma_range[i].dma,
+						request->dma_range[i].mapping_size,
+						request->vstor_packet.vm_srb.data_in
+						     == READ_TYPE ?
+						DMA_FROM_DEVICE : DMA_TO_DEVICE, attrs);
+			kfree(request->dma_range);
+		}
 
 		if (request == &stor_device->init_request ||
 		    request == &stor_device->reset_request) {
@@ -1682,8 +1710,10 @@ static int storvsc_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *scmnd)
 	struct vmscsi_request *vm_srb;
 	struct scatterlist *cur_sgl;
 	struct vmbus_packet_mpb_array  *payload;
+	enum dma_data_direction dir;
 	u32 payload_sz;
 	u32 length;
+	u32 attrs;
 
 	if (vmstor_proto_version <= VMSTOR_PROTO_VERSION_WIN8) {
 		/*
@@ -1722,14 +1752,17 @@ static int storvsc_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *scmnd)
 	case DMA_TO_DEVICE:
 		vm_srb->data_in = WRITE_TYPE;
 		vm_srb->win8_extension.srb_flags |= SRB_FLAGS_DATA_OUT;
+		dir = DMA_TO_DEVICE;
 		break;
 	case DMA_FROM_DEVICE:
 		vm_srb->data_in = READ_TYPE;
 		vm_srb->win8_extension.srb_flags |= SRB_FLAGS_DATA_IN;
+		dir = DMA_FROM_DEVICE;
 		break;
 	case DMA_NONE:
 		vm_srb->data_in = UNKNOWN_TYPE;
 		vm_srb->win8_extension.srb_flags |= SRB_FLAGS_NO_DATA_TRANSFER;
+		dir = DMA_NONE;
 		break;
 	default:
 		/*
@@ -1786,6 +1819,12 @@ static int storvsc_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *scmnd)
 		hvpgoff = sgl->offset >> HV_HYP_PAGE_SHIFT;
 
 		cur_sgl = sgl;
+
+		cmd_request->dma_range = kzalloc(sizeof(struct dma_range) * hvpg_count,
+			      GFP_ATOMIC);
+		if (!cmd_request->dma_range)
+			return -ENOMEM;
+
 		for (i = 0; i < hvpg_count; i++) {
 			/*
 			 * 'i' is the index of hv pages in the payload and
@@ -1805,6 +1844,8 @@ static int storvsc_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *scmnd)
 			 */
 			unsigned int hvpgoff_in_page =
 				(i + hvpgoff) % NR_HV_HYP_PAGES_IN_PAGE;
+			dma_addr_t dma;
+			u32 size;
 
 			/*
 			 * Two cases that we need to fetch a page:
@@ -1817,8 +1858,28 @@ static int storvsc_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *scmnd)
 				cur_sgl = sg_next(cur_sgl);
 			}
 
-			payload->range.pfn_array[i] = hvpfn + hvpgoff_in_page;
+			size = min(HV_HYP_PAGE_SIZE - offset_in_hvpg, (unsigned long)length);
+			dma = dma_map_page_attrs(&dev->device,
+						 pfn_to_page(hvpfn),
+						 offset_in_hvpg, size,
+						 scmnd->sc_data_direction, attrs);
+			if (dma_mapping_error(&dev->device, dma)) {
+				pr_warn("dma map error.\n");
+				ret = -ENOMEM;
+				goto free_dma_range;
+			}
+
+			if (offset_in_hvpg) {
+				payload->range.offset = dma & ~HV_HYP_PAGE_MASK;
+				offset_in_hvpg = 0;
+			}
+
+			cmd_request->dma_range[i].dma = dma;
+			cmd_request->dma_range[i].mapping_size = size;
+			payload->range.pfn_array[i] = dma >> HV_HYP_PAGE_SHIFT;
+			length -= size;
 		}
+		cmd_request->hvpg_count = hvpg_count;
 	}
 
 	cmd_request->payload = payload;
@@ -1836,6 +1897,10 @@ static int storvsc_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *scmnd)
 	}
 
 	return 0;
+
+free_dma_range:
+	kfree(cmd_request->dma_range);
+	return ret;
 }
 
 static struct scsi_host_template scsi_driver = {
