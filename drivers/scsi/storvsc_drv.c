@@ -1219,11 +1219,6 @@ static void storvsc_on_channel_callback(void *context)
 		struct storvsc_cmd_request *request = NULL;
 		u64 rqst_id = desc->trans_id;
 
-		if (desc->type == VM_PKT_COMP && request->bounce_pkt) {
-			hv_pkt_bounce(channel, request->bounce_pkt);
-			request->bounce_pkt = NULL;
-		}
-	
 		if (hv_pkt_datalen(desc) < sizeof(struct vstor_packet) -
 				stor_device->vmscsi_size_delta) {
 			dev_err(&device->device, "Invalid packet len\n");
@@ -1260,14 +1255,21 @@ static void storvsc_on_channel_callback(void *context)
 				}
 				request = (struct storvsc_cmd_request *)scsi_cmd_priv(scmnd);
 			}
-
-			storvsc_on_receive(stor_device, packet, request);
-			continue;
 		}
 
-		memcpy(&request->vstor_packet, packet,
-		       (sizeof(struct vstor_packet) - stor_device->vmscsi_size_delta));
-		complete(&request->wait_event);
+		if (desc->type == VM_PKT_COMP && request->bounce_pkt) {
+			hv_pkt_bounce(channel, request->bounce_pkt);
+			request->bounce_pkt = NULL;
+		}
+
+		if (rqst_id == VMBUS_RQST_INIT ||
+		    rqst_id == VMBUS_RQST_RESET) {
+			memcpy(&request->vstor_packet, packet,
+			       (sizeof(struct vstor_packet) - stor_device->vmscsi_size_delta));
+			complete(&request->wait_event);
+		} else {
+			storvsc_on_receive(stor_device, packet, request);
+		}
 	}
 }
 
