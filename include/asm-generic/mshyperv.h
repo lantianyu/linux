@@ -23,8 +23,15 @@
 #include <linux/bitops.h>
 #include <linux/cpumask.h>
 #include <linux/nmi.h>
+#include <asm/svm.h>
+#include <asm/sev.h>
 #include <asm/ptrace.h>
+#include <asm/mshyperv.h>
 #include <asm/hyperv-tlfs.h>
+
+union hv_ghcb {
+	struct ghcb ghcb;
+} __packed __aligned(PAGE_SIZE);
 
 struct ms_hyperv_info {
 	u32 features;
@@ -45,7 +52,7 @@ struct ms_hyperv_info {
 			u32 Reserved12 : 20;
 		};
 	};
-	void  __percpu **ghcb_base;
+	union hv_ghcb __percpu **ghcb_base;
 	u64 shared_gpa_boundary;
 };
 extern struct ms_hyperv_info ms_hyperv;
@@ -55,6 +62,7 @@ extern void  __percpu  **hyperv_pcpu_output_arg;
 
 extern u64 hv_do_hypercall(u64 control, void *inputaddr, void *outputaddr);
 extern u64 hv_do_fast_hypercall8(u16 control, u64 input8);
+extern bool hv_isolation_type_snp(void);
 
 /* Helper functions that provide a consistent pattern for checking Hyper-V hypercall status. */
 static inline int hv_result(u64 status)
@@ -149,7 +157,7 @@ static inline void vmbus_signal_eom(struct hv_message *msg, u32 old_msg_type)
 		 * possibly deliver another msg from the
 		 * hypervisor
 		 */
-		hv_set_register(HV_REGISTER_EOM, 0);
+		hv_signal_eom();
 	}
 }
 
