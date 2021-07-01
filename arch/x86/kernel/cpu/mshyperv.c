@@ -223,6 +223,20 @@ static void __init hv_smp_prepare_boot_cpu(void)
 #endif
 }
 
+static void (* __initdata old_setup_initr_mode)(void);
+
+static void __init hv_setup_initr_mode(void)
+{
+	if (old_setup_initr_mode)
+		old_setup_initr_mode();
+
+	/*
+	 * The direct-mode STIMER depends on LAPIC and so allocate
+	 * STIMER after calling initr node callback.
+	 */
+	(void)hv_stimer_alloc(false);
+}
+
 static void __init hv_smp_prepare_cpus(unsigned int max_cpus)
 {
 #ifdef CONFIG_X86_64
@@ -432,6 +446,13 @@ static void __init ms_hyperv_init_platform(void)
 	/* Register Hyper-V specific clocksource */
 	hv_init_clocksource();
 #endif
+
+	/*
+	 * Override initr mode callback in order to allocate STIMER
+	 * after initalizing LAPIC.
+	 */
+	old_setup_initr_mode = x86_init.irqs.intr_mode_init;
+	x86_init.irqs.intr_mode_init = hv_setup_initr_mode;
 }
 
 static bool __init ms_hyperv_x2apic_available(void)
