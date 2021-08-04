@@ -20,6 +20,8 @@
 #include <linux/bitops.h>
 #include <linux/dma-mapping.h>
 #include <linux/virtio_config.h>
+#include <linux/highmem.h>
+#include <linux/static_call.h>
 
 #include <asm/tlbflush.h>
 #include <asm/fixmap.h>
@@ -178,12 +180,53 @@ void __init sme_map_bootdata(char *real_mode_data)
 	__sme_early_map_unmap_mem(__va(cmdline_paddr), COMMAND_LINE_SIZE, true);
 }
 
+static int sev_set_memory_enc(unsigned long addr, int numpages, bool enc)
+{
+	struct cpa_data cpa;
+	int ret;
+
+	/* Should not be working on unaligned addresses */
+	if (WARN_ONCE(addr & ~PAGE_MASK, "misaligned address: %#lx\n", addr))
+		addr &= PAGE_MASK;
+
+	memset(&cpa, 0, sizeof(cpa));
+	cpa.vaddr = &addr;
+	cpa.numpages = numpages;
+	cpa.mask_set = enc ? __pgprot(_PAGE_ENC) : __pgprot(0);
+	cpa.mask_clr = enc ? __pgprot(0) : __pgprot(_PAGE_ENC);
+	cpa.pgd = init_mm.pgd;
+
+	/* Must avoid aliasing mappings in the highmem code */
+	kmap_flush_unused();
+	vm_unmap_aliases();
+
+	/*
+	 * Before changing the encryption attribute, we need to flush caches.
+	 */
+	cpa_flush(&cpa, !this_cpu_has(X86_FEATURE_SME_COHERENT));
+
+	ret = __change_page_attr_set_clr(&cpa, 1);
+
+	/*
+	 * After changing the encryption attribute, we need to flush TLBs again
+	 * in case any speculative TLB caching occurred (but no need to flush
+	 * caches again).  We could just use cpa_flush_all(), but in case TLB
+	 * flushing gets optimized in the cpa_flush() path use the same logic
+	 * as above.
+	 */
+	cpa_flush(&cpa, 0);
+
+	return ret;
+}
+
 void __init sme_early_init(void)
 {
 	unsigned int i;
 
 	if (!sme_me_mask)
 		return;
+
+	static_call_update(x86_set_memory_enc, sev_set_memory_enc);
 
 	early_pmd_flags = __sme_set(early_pmd_flags);
 

@@ -4,6 +4,25 @@
 
 #include <asm/page.h>
 #include <asm-generic/set_memory.h>
+#include <linux/static_call.h>
+
+/*
+ * The current flushing context - we pass it instead of 5 arguments:
+ */
+struct cpa_data {
+	unsigned long	*vaddr;
+	pgd_t		*pgd;
+	pgprot_t	mask_set;
+	pgprot_t	mask_clr;
+	unsigned long	numpages;
+	unsigned long	curpage;
+	unsigned long	pfn;
+	unsigned int	flags;
+	unsigned int	force_split		: 1,
+			force_static_prot	: 1,
+			force_flush_all		: 1;
+	struct page	**pages;
+};
 
 /*
  * The set_memory_* API can be used to change various attributes of a virtual
@@ -83,6 +102,11 @@ int set_pages_rw(struct page *page, int numpages);
 int set_direct_map_invalid_noflush(struct page *page);
 int set_direct_map_default_noflush(struct page *page);
 bool kernel_page_present(struct page *page);
+int __change_page_attr_set_clr(struct cpa_data *cpa, int checkalias);
+void cpa_flush(struct cpa_data *data, int cache);
+
+int dummy_set_memory_enc(unsigned long addr, int numpages, bool enc);
+DECLARE_STATIC_CALL(x86_set_memory_enc, dummy_set_memory_enc);
 
 extern int kernel_set_to_readonly;
 
