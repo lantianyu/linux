@@ -759,8 +759,10 @@ void netvsc_device_remove(struct hv_device *device)
 	RCU_INIT_POINTER(net_device_ctx->nvdev, NULL);
 
 	/* And disassociate NAPI context from device */
-	for (i = 0; i < net_device->num_chn; i++)
+	for (i = 0; i < net_device->num_chn; i++) {
 		netif_napi_del(&net_device->chan_table[i].napi);
+		hv_bounce_resources_free(net_device->chan_table[i].channel);
+	}
 
 	/*
 	 * At this point, no one should be accessing net_device

@@ -1099,6 +1099,8 @@ void vmbus_set_chn_rescind_callback(struct vmbus_channel *channel,
 
 extern int hv_bounce_resources_reserve(struct vmbus_channel *channel,
 				       u32 min_bounce_bytes);
+extern void hv_bounce_resources_free(struct vmbus_channel *channel);
+
 /*
  * Check if sub-channels have already been offerred. This API will be useful
  * when the driver is unloaded after establishing sub-channels. In this case,

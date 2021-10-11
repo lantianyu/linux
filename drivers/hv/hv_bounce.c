@@ -417,6 +417,23 @@ err_free:
 	return -ENOMEM;
 }
 
+void hv_bounce_resources_free(struct vmbus_channel *channel)
+{
+	unsigned long flags;
+
+	if (!hv_is_isolation_supported())
+		return;
+
+	spin_lock_irqsave(&channel->bp_lock, flags);
+	hv_bounce_pkt_list_free(channel, &channel->bounce_pkt_free_list_head);
+	hv_bounce_page_list_free(channel, &channel->bounce_page_free_head);
+	channel->bounce_pkt_free_count = 0;
+	channel->bounce_page_alloc_count = 0;
+	channel->min_bounce_resource_count = 0;
+	spin_unlock_irqrestore(&channel->bp_lock, flags);
+}
+EXPORT_SYMBOL_GPL(hv_bounce_resources_free);
+
 /*
  * Allocate and reserve enough bounce resources to be able to handle the min
  * specified bytes. This routine should be called prior to starting the I/O on
