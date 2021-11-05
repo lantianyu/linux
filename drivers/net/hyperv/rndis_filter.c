@@ -1486,6 +1486,13 @@ struct netvsc_device *rndis_filter_device_add(struct hv_device *dev,
 	if (!rndis_device)
 		return ERR_PTR(-ENODEV);
 
+	ret = hv_bounce_resources_reserve(dev->channel,
+		4 * PAGE_SIZE * 1024);
+	if (ret < 0) {
+		kfree(rndis_device);
+		return -ENOMEM;
+	}
+
 	/* Let the inner driver handle this first to create the netvsc channel
 	 * NOTE! Once the channel is created, we may get a receive callback
 	 * (RndisFilterOnReceive()) before this call is completed
@@ -1493,7 +1500,8 @@ struct netvsc_device *rndis_filter_device_add(struct hv_device *dev,
 	net_device = netvsc_device_add(dev, device_info);
 	if (IS_ERR(net_device)) {
 		kfree(rndis_device);
-		return net_device;
+		ret = net_device;
+		goto free_reserve_memory;
 	}
 
 	/* Initialize the rndis device */
@@ -1592,6 +1600,8 @@ out:
 
 err_dev_remv:
 	rndis_filter_device_remove(dev, net_device);
+free_reserve_memory:
+	hv_bounce_resources_free(dev->channel);
 	return ERR_PTR(ret);
 }
 
