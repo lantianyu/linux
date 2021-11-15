@@ -322,9 +322,10 @@ struct page *dma_direct_alloc_pages(struct device *dev, size_t size,
 	void *ret;
 
 	if (IS_ENABLED(CONFIG_DMA_COHERENT_POOL) &&
-	    force_dma_unencrypted(dev) && !gfpflags_allow_blocking(gfp) &&
-	    !is_swiotlb_for_alloc(dev))
+	    force_dma_unencrypted(dev) /*&& !gfpflags_allow_blocking(gfp) &&
+				 !is_swiotlb_for_alloc(dev)*/) {
 		return dma_direct_alloc_from_pool(dev, size, dma_handle, gfp);
+	}
 
 	page = __dma_direct_alloc_pages(dev, size, gfp);
 	if (!page)

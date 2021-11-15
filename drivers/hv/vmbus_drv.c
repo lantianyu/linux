@@ -2120,7 +2120,9 @@ int vmbus_device_register(struct hv_device *child_device_obj)
 	}
 	hv_debug_add_dev_dir(child_device_obj);
 
-	child_device_obj->device.dma_mask = &vmbus_dma_mask;
+	child_device_obj->device.dma_ops_bypass = true;
+	child_device_obj->device.dma_ops = &hyperv_iommu_dma_ops;
+	child_device_obj->device.dma_mask = &vmbus_dma_mask;	
 	child_device_obj->device.dma_parms = &child_device_obj->dma_parms;
 	return 0;
 

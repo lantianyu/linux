@@ -355,8 +355,9 @@ static void __init hyperv_iommu_swiotlb_init(void)
 	 * to reserve large contiguous memory.
 	 */
 	hyperv_io_tlb_size = swiotlb_size_or_default();
-	hyperv_io_tlb_start = memblock_alloc(
-		hyperv_io_tlb_size, PAGE_SIZE);
+
+	hyperv_io_tlb_size = 256 * 1024 *1024;
+	hyperv_io_tlb_start = memblock_alloc(hyperv_io_tlb_size, PAGE_SIZE);
 
 	if (!hyperv_io_tlb_start)
 		pr_warn("Fail to allocate Hyper-V swiotlb buffer.\n");
@@ -395,5 +396,105 @@ static void __init hyperv_iommu_swiotlb_later_init(void)
 IOMMU_INIT_FINISH(hyperv_swiotlb_detect,
 		  NULL, hyperv_iommu_swiotlb_init,
 		  hyperv_iommu_swiotlb_later_init);
+
+static struct sg_table *hyperv_dma_alloc_noncontiguous(struct device *dev,
+		size_t size, enum dma_data_direction dir, gfp_t gfp,
+		unsigned long attrs)
+{
+	struct dma_sgt_handle *sh;
+	struct page **pages;
+	int num_pages = size >> PAGE_SHIFT;
+	void *vaddr, *ptr;
+	int rc, i;
+
+	sh = kmalloc(sizeof(*sh), gfp);
+	if (!sh)
+		return NULL;
+
+	vaddr = vmalloc(size);
+	if (!vaddr)
+		goto free_sgt;
+
+	pages = kvmalloc_array(num_pages, sizeof(struct page *),
+				    GFP_KERNEL | __GFP_ZERO);
+	if (!pages)
+		goto free_mem;
+
+	for (i = 0, ptr = vaddr; i < num_pages; ++i, ptr += PAGE_SIZE)
+		pages[i] = vmalloc_to_page(ptr);
+
+	rc = sg_alloc_table_from_pages(&sh->sgt, pages, num_pages, 0, size, GFP_KERNEL);
+	if (rc)
+		goto free_pages;
+
+	sh->sgt.sgl->dma_address = (dma_addr_t)vaddr;
+	sh->sgt.sgl->dma_length = size;
+	sh->pages = pages;
+
+	return &sh->sgt;
+
+free_pages:
+	kvfree(pages);
+free_mem:
+	vfree(vaddr);
+free_sgt:
+	kfree(sh);
+	return NULL;
+}
+
+static void hyperv_dma_free_noncontiguous(struct device *dev, size_t size,
+		struct sg_table *sgt, enum dma_data_direction dir)
+{
+	struct dma_sgt_handle *sh = sgt_handle(sgt);
+
+	vfree((void *)sh->sgt.sgl->dma_address);
+	sg_free_table(&sh->sgt);
+	kvfree(sh->pages);
+	kfree(sh);
+}
+
+static void *hyperv_dma_vmap_noncontiguous(struct device *dev, size_t size,
+			struct sg_table *sgt)
+{
+	int pg_count = size >> PAGE_SHIFT;
+	unsigned long *pfns;
+	struct page **pages = sgt_handle(sgt)->pages;
+	void *vaddr = NULL;
+	int i;
+
+	if (!hv_isolation_type_snp())
+		return NULL;
+
+	if (!pages)
+		return NULL;
+
+	pfns = kcalloc(pg_count, sizeof(*pfns), GFP_KERNEL);
+	if (!pfns)
+		return NULL;
+
+	for (i = 0; i < pg_count; i++) 
+		pfns[i] = page_to_pfn(pages[i]) +
+			(ms_hyperv.shared_gpa_boundary >> PAGE_SHIFT);
+
+	vaddr = vmap_pfn(pfns, pg_count, PAGE_KERNEL);
+	kfree(pfns);
+	return vaddr;
+
+}
+
+static void hyperv_dma_vunmap_noncontiguous(struct device *dev, void *addr)
+{
+	if (!hv_isolation_type_snp())
+		return;
+	vunmap(addr);
+}
+
+const struct dma_map_ops hyperv_iommu_dma_ops = {
+		.alloc_noncontiguous = hyperv_dma_alloc_noncontiguous,
+		.free_noncontiguous = hyperv_dma_free_noncontiguous,
+		.vmap_noncontiguous = hyperv_dma_vmap_noncontiguous,
+		.vunmap_noncontiguous = hyperv_dma_vunmap_noncontiguous,
+};
+EXPORT_SYMBOL_GPL(hyperv_iommu_dma_ops);
 
 #endif

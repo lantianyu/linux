@@ -27,9 +27,11 @@ struct dma_map_ops {
 			unsigned long attrs);
 	void (*free_noncontiguous)(struct device *dev, size_t size,
 			struct sg_table *sgt, enum dma_data_direction dir);
+	void *(*vmap_noncontiguous)(struct device *dev, size_t size, 
+			struct sg_table *sgt);
+	void (*vunmap_noncontiguous)(struct device *dev, void *addr);
 	int (*mmap)(struct device *, struct vm_area_struct *,
 			void *, dma_addr_t, size_t, unsigned long attrs);
-
 	int (*get_sgtable)(struct device *dev, struct sg_table *sgt,
 			void *cpu_addr, dma_addr_t dma_addr, size_t size,
 			unsigned long attrs);
