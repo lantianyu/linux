@@ -16,7 +16,7 @@
 
 int svm_hv_enable_direct_tlbflush(struct kvm_vcpu *vcpu)
 {
-	struct hv_enlightenments *hve;
+	struct hv_vmcb_enlightenments *hve;
 	struct hv_partition_assist_pg **p_hv_pa_pg =
 			&to_kvm_hv(vcpu->kvm)->hv_pa_pg;
 
@@ -26,7 +26,7 @@ int svm_hv_enable_direct_tlbflush(struct kvm_vcpu *vcpu)
 	if (!*p_hv_pa_pg)
 		return -ENOMEM;
 
-	hve = (struct hv_enlightenments *)to_svm(vcpu)->vmcb->control.reserved_sw;
+	hve = (struct hv_vmcb_enlightenments *)to_svm(vcpu)->vmcb->control.reserved_sw;
 
 	hve->partition_assist_page = __pa(*p_hv_pa_pg);
 	hve->hv_vm_id = (unsigned long)vcpu->kvm;

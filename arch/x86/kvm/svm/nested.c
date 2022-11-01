@@ -179,8 +179,8 @@ void recalc_intercepts(struct vcpu_svm *svm)
  */
 static bool nested_svm_vmrun_msrpm(struct vcpu_svm *svm)
 {
-	struct hv_enlightenments *hve =
-		(struct hv_enlightenments *)svm->nested.ctl.reserved_sw;
+	struct hv_vmcb_enlightenments *hve =
+		(struct hv_vmcb_enlightenments *)svm->nested.ctl.reserved_sw;
 	int i;
 
 	/*
@@ -370,7 +370,7 @@ void __nested_copy_vmcb_control_to_cache(struct kvm_vcpu *vcpu,
 	if (kvm_hv_hypercall_enabled(vcpu)) {
 		to->clean = from->clean;
 		memcpy(to->reserved_sw, from->reserved_sw,
-		       sizeof(struct hv_enlightenments));
+		       sizeof(struct hv_vmcb_enlightenments));
 	}
 }
 
