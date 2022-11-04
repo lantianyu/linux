@@ -36,6 +36,10 @@
 #define HYPERV_CPUID_MIN			0x40000005
 #define HYPERV_CPUID_MAX			0x4000ffff
 
+/* Support for HVCALL_GET_VP_REGISTERS hvcall */
+#define	HV_X64_REGISTER_VSM_VP_STATUS	0x000D0003
+#define HV_X64_VTL_MASK			GENMASK(3, 0)
+
 /*
  * Group D Features.  The bit assignments are custom to each architecture.
  * On x86/x64 these are HYPERV_CPUID_FEATURES.EDX bits.
