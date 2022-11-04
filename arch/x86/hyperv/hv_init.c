@@ -30,6 +30,7 @@
 #include <clocksource/hyperv_timer.h>
 #include <linux/highmem.h>
 #include <linux/swiotlb.h>
+#include <linux/set_memory.h>
 
 int hyperv_init_cpuhp;
 u64 hv_current_partition_id = ~0ull;
@@ -112,6 +113,11 @@ static int hv_cpu_init(unsigned int cpu)
 		}
 		WARN_ON(!(*hvp));
 		if (*hvp) {
+			if (hv_isolation_type_en_snp()) {
+				WARN_ON_ONCE(set_memory_decrypted((unsigned long)(*hvp), 1) != 0);
+				memset(*hvp, 0, PAGE_SIZE);
+			}
+
 			msr.enable = 1;
 			wrmsrl(HV_X64_MSR_VP_ASSIST_PAGE, msr.as_uint64);
 		}
@@ -228,6 +234,12 @@ static int hv_cpu_die(unsigned int cpu)
 
 	if (hv_vp_assist_page && hv_vp_assist_page[cpu]) {
 		union hv_vp_assist_msr_contents msr = { 0 };
+
+		if (hv_isolation_type_en_snp())
+			WARN_ON_ONCE(set_memory_encrypted(
+				    (unsigned long)hv_vp_assist_page[cpu],
+				    1) != 0);
+
 		if (hv_root_partition) {
 			/*
 			 * For root partition the VP assist page is mapped to
