@@ -108,8 +108,11 @@ int vmbus_negotiate_version(struct vmbus_channel_msginfo *msginfo, u32 version)
 	 */
 	if (version >= VERSION_WIN10_V5) {
 		msg->msg_sint = VMBUS_MESSAGE_SINT;
+
 #ifdef CONFIG_MSHV_VTL
 		msg->msg_vtl = 2;
+#else
+		msg->msg_vtl = ms_hyperv.vtl;
 #endif
 		vmbus_connection.msg_conn_id = VMBUS_MESSAGE_CONNECTION_ID_4;
 	} else {
