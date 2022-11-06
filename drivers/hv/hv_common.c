@@ -21,6 +21,7 @@
 #include <linux/ptrace.h>
 #include <linux/slab.h>
 #include <linux/dma-map-ops.h>
+#include <linux/set_memory.h>
 #include <asm/hyperv-tlfs.h>
 #include <asm/mshyperv.h>
 
@@ -140,6 +141,8 @@ int hv_common_cpu_init(unsigned int cpu)
 	u8 **synic_eventring_tail;
 	u64 msr_vp_index;
 	gfp_t flags;
+	int pgcount = hv_root_partition ? 2 : 1;
+	int ret;
 
 	/* hv_cpu_init() can be called with IRQs disabled from hv_resume() */
 	flags = irqs_disabled() ? GFP_ATOMIC : GFP_KERNEL;
@@ -151,6 +154,16 @@ int hv_common_cpu_init(unsigned int cpu)
 
 	outputarg = (void **)this_cpu_ptr(hyperv_pcpu_output_arg);
 	*outputarg = (char *)(*inputarg) + HV_HYP_PAGE_SIZE;
+
+	if (hv_isolation_type_en_snp()) {
+		ret = set_memory_decrypted((unsigned long)*inputarg, 1);
+		if (ret) {
+			kfree(*inputarg);
+			return ret;
+		}
+
+		memset(*inputarg, 0x00, PAGE_SIZE);
+	}
 
 	if (hv_root_partition) {
 		synic_eventring_tail = (u8 **)this_cpu_ptr(hv_synic_eventring_tail);
@@ -196,6 +209,9 @@ int hv_common_cpu_die(unsigned int cpu)
 	}
 
 	local_irq_restore(flags);
+
+	if (hv_isolation_type_en_snp())
+		set_memory_encrypted((unsigned long)mem, 1);
 
 	kfree(mem);
 
