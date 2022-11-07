@@ -18,6 +18,7 @@
 #include <linux/slab.h>
 #include <linux/prefetch.h>
 #include <linux/io.h>
+#include <linux/set_memory.h>
 #include <asm/mshyperv.h>
 
 #include "hyperv_vmbus.h"
@@ -233,13 +234,17 @@ int hv_ringbuffer_init(struct hv_ring_buffer_info *ring_info,
 
 		ring_info->ring_buffer = (struct hv_ring_buffer *)
 			vmap(pages_wraparound, page_cnt * 2 - 1, VM_MAP,
+				hv_isolation_type_en_snp() ?
+				pgprot_decrypted(PAGE_KERNEL_NOENC) :
 				PAGE_KERNEL);
+
+		if (hv_isolation_type_en_snp())
+			memset(ring_info->ring_buffer, 0x00, page_cnt * PAGE_SIZE);
 
 		kfree(pages_wraparound);
 		if (!ring_info->ring_buffer)
 			return -ENOMEM;
 	}
-
 
 	ring_info->ring_buffer->read_index =
 		ring_info->ring_buffer->write_index = 0;
