@@ -18,6 +18,7 @@
 #include <linux/slab.h>
 #include <linux/prefetch.h>
 #include <linux/io.h>
+#include <linux/set_memory.h>
 #include <asm/mshyperv.h>
 
 #include "hyperv_vmbus.h"
@@ -215,7 +216,6 @@ int hv_ringbuffer_init(struct hv_ring_buffer_info *ring_info,
 	 * encryption status may have changed.
 	 */
 	memset(ring_info->ring_buffer, 0, HV_HYP_PAGE_SIZE);
-
 	ring_info->ring_buffer->read_index =
 		ring_info->ring_buffer->write_index = 0;
 
