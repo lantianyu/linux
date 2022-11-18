@@ -110,6 +110,11 @@ struct sev_es_runtime_data {
 	 * not registered then sev_es_get_ghcb() will perform the registration.
 	 */
 	bool ghcb_registered;
+
+	/*
+	 * Indication that we are currently handling #HV events.
+	 */
+	bool hv_handling_events;
 };
 
 struct ghcb_state {
@@ -206,6 +211,8 @@ static void do_exc_hv(struct pt_regs *regs)
 	union hv_pending_events pending_events;	
 	u8 vector;
 
+	sev_snp_current_doorbell_page()->hv_handling_events = true;
+
 	while (sev_hv_pending()) {
 		asm volatile("cli" : : : "memory");
 
@@ -244,6 +251,8 @@ static void do_exc_hv(struct pt_regs *regs)
 
 		asm volatile("sti" : : : "memory");
 	}
+
+	sev_snp_current_doorbell_page()->hv_handling_events = false;
 }
 
 void check_hv_pending(struct pt_regs *regs)
@@ -2547,3 +2556,25 @@ static int __init snp_init_platform_device(void)
 	return 0;
 }
 device_initcall(snp_init_platform_device);
+
+noinstr void irqentry_exit_hv_cond(struct pt_regs *regs, irqentry_state_t state)
+{
+	/*
+	 * Check whether this returns to user mode, if so and if
+	 * we are currently executing the #HV handler then we don't
+	 * want to follow the irqentry_exit_to_user_mode path as
+	 * that can potentially cause the #HV handler to be
+	 * preempted and rescheduled on another CPU. Rescheduled #HV
+	 * handler on another cpu will cause interrupts to be handled
+	 * on a different cpu than the injected one, causing
+	 * invalid EOIs and missed/lost guest interrupts and
+	 * corresponding hangs and/or per-cpu IRQs handled on
+	 * non-intended cpu.
+	 */
+	if (user_mode(regs) &&
+	    sev_snp_current_doorbell_page()->hv_handling_events)
+		return;
+
+	/* follow normal interrupt return/exit path */
+	irqentry_exit(regs, state);
+}
