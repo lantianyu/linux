@@ -147,6 +147,10 @@ struct sev_hv_doorbell_page {
 
 struct sev_snp_runtime_data {
 	struct sev_hv_doorbell_page hv_doorbell_page;
+	/*
+	 * Indication that we are currently handling #HV events.
+	 */
+	bool hv_handling_events;
 };
 
 static DEFINE_PER_CPU(struct sev_snp_runtime_data*, snp_runtime_data);
@@ -202,6 +206,12 @@ static void do_exc_hv(struct pt_regs *regs)
 {
 	union hv_pending_events pending_events;
 
+	/* Avoid nested entry. */
+	if (this_cpu_read(snp_runtime_data)->hv_handling_events)
+		return;
+
+	this_cpu_read(snp_runtime_data)->hv_handling_events = true;
+
 	while (sev_hv_pending()) {
 		pending_events.events = xchg(
 			&sev_snp_current_doorbell_page()->pending_events.events,
@@ -236,6 +246,8 @@ static void do_exc_hv(struct pt_regs *regs)
 			common_interrupt(regs, pending_events.vector);
 		}
 	}
+
+	this_cpu_read(snp_runtime_data)->hv_handling_events = false;
 }
 
 static __always_inline bool on_vc_stack(struct pt_regs *regs)
@@ -2533,3 +2545,25 @@ static int __init snp_init_platform_device(void)
 	return 0;
 }
 device_initcall(snp_init_platform_device);
+
+noinstr void irqentry_exit_hv_cond(struct pt_regs *regs, irqentry_state_t state)
+{
+	/*
+	 * Check whether this returns to user mode, if so and if
+	 * we are currently executing the #HV handler then we don't
+	 * want to follow the irqentry_exit_to_user_mode path as
+	 * that can potentially cause the #HV handler to be
+	 * preempted and rescheduled on another CPU. Rescheduled #HV
+	 * handler on another cpu will cause interrupts to be handled
+	 * on a different cpu than the injected one, causing
+	 * invalid EOIs and missed/lost guest interrupts and
+	 * corresponding hangs and/or per-cpu IRQs handled on
+	 * non-intended cpu.
+	 */
+	if (user_mode(regs) &&
+	    this_cpu_read(snp_runtime_data)->hv_handling_events)
+		return;
+
+	/* follow normal interrupt return/exit path */
+	irqentry_exit(regs, state);
+}
