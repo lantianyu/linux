@@ -557,8 +557,8 @@ void __init hyperv_init(void)
 	 * space. Map function doesn't work in the early place and so
 	 * call swiotlb_update_mem_attributes() here.
 	 */
-	if (hv_is_isolation_supported())
-		swiotlb_update_mem_attributes();
+//	if (hv_is_isolation_supported() && !sev_snp_active())
+//		swiotlb_update_mem_attributes();
 #endif
 	/* Find the current VTL */
 	ms_hyperv.vtl = get_current_vtl();
