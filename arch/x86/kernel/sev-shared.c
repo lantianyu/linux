@@ -433,6 +433,7 @@ static int snp_cpuid_postprocess(struct ghcb *ghcb, struct es_em_ctxt *ctxt,
 	switch (leaf->fn) {
 	case 0x1:
 		snp_cpuid_hv(ghcb, ctxt, &leaf_hv);
+		leaf->ecx |= BIT(31); /* Inside a VM */
 
 		/* initial APIC ID */
 		leaf->ebx = (leaf_hv.ebx & GENMASK(31, 24)) | (leaf->ebx & GENMASK(23, 0));
@@ -553,6 +554,13 @@ snp_cpuid(struct ghcb *ghcb, struct es_em_ctxt *ctxt, struct cpuid_leaf *leaf)
 		      (leaf->fn >= 0x40000000 && leaf->fn <= RIP_REL_REF(cpuid_hyp_range_max)) ||
 		      (leaf->fn >= 0x80000000 && leaf->fn <= RIP_REL_REF(cpuid_ext_range_max))))
 			return 0;
+
+			if (leaf->fn < 0x400000ff && leaf->fn >= 0x40000000) {
+				return -EOPNOTSUPP;
+			} else {
+				return 0;
+			}
+		}
 	}
 
 	return snp_cpuid_postprocess(ghcb, ctxt, leaf);
