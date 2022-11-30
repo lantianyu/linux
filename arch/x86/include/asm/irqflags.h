@@ -68,6 +68,10 @@ static inline __cpuidle void native_safe_halt(void)
 {
 	mds_idle_clear_cpu_buffers();
 	asm volatile("sti; hlt": : :"memory");
+#ifdef CONFIG_AMD_MEM_ENCRYPT
+	check_hv_pending(NULL);
+#endif
+
 }
 
 static inline __cpuidle void native_halt(void)
