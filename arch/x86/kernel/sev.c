@@ -1429,6 +1429,23 @@ static enum es_result vc_handle_msr(struct ghcb *ghcb, struct es_em_ctxt *ctxt)
 	/* Is it a WRMSR? */
 	exit_info_1 = (ctxt->insn.opcode.bytes[1] == 0x30) ? 1 : 0;
 
+	if (cc_platform_has(CC_ATTR_GUEST_SEV_SNP)) {
+		/*
+		 * Handle security-sensitive MSRs here.
+		 * TODO: incomplete list.
+		 */
+		switch (regs->cx) {
+		case MSR_AMD64_OSVW_ID_LENGTH:
+		case MSR_K8_TSEG_ADDR:
+		case MSR_F10H_DECFG:
+			if (!exit_info_1) {
+				regs->dx = 0;
+				regs->ax = 0;
+			}
+			return ES_OK;
+		}
+	}
+
 	ghcb_set_rcx(ghcb, regs->cx);
 	if (exit_info_1) {
 		ghcb_set_rax(ghcb, regs->ax);
@@ -2274,7 +2291,7 @@ DEFINE_IDTENTRY_HV_KERNEL(exc_hv_injection)
 {
 	irqentry_state_t irq_state;
 
-	irq_state = irqentry_nmi_enter(regs);
+	irq_state = irqentry_enter(regs);
 	instrumentation_begin();
 
 	if (!hv_raw_handle_exception(regs)) {
@@ -2290,7 +2307,7 @@ DEFINE_IDTENTRY_HV_KERNEL(exc_hv_injection)
 	}
 
 	instrumentation_end();
-	irqentry_nmi_exit(regs, irq_state);
+	irqentry_exit(regs, irq_state);
 }
 
 bool __init handle_vc_boot_ghcb(struct pt_regs *regs)
