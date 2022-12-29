@@ -281,6 +281,13 @@ class setup_header(Structure):
 
 assert sizeof(setup_header) == 0x77
 
+class cc_setup_data(Structure):
+    _pack_ = 1
+    _fields_ = [('next', c_uint64),
+                ('type', c_uint32),
+                ('len', c_uint32),
+                ('cc_blob_address', c_uint32)]
+
 ACPI_END_ADDR = 0x200000
 
 E820_TYPE_RAM           = 1
@@ -1715,6 +1722,7 @@ def load_kernel(kernel, cmdline, ramdisk, vtl, config, sign_key):
     secrets_page = state.memory.allocate(PGSIZE)
     param_page = state.memory.allocate(PGSIZE)
     sev_info_page = state.memory.allocate(PGSIZE)
+    setup_page = state.memory.allocate(PGSIZE)    
 
     sev_info = cc_blob_sev_info.from_buffer(state.memory, sev_info_page)
     sev_info.magic = CC_BLOB_SEV_HDR_MAGIC
@@ -1724,6 +1732,14 @@ def load_kernel(kernel, cmdline, ramdisk, vtl, config, sign_key):
     sev_info.cpuid_len = PGSIZE
 
     del sev_info
+
+    setup_info = cc_setup_data.from_buffer(state.memory, setup_page)
+    setup_info.next = 0
+    setup_info.type = 7
+    setup_info.len = PGSIZE - sizeof(cc_setup_data)
+    setup_info.cc_blob_address = sev_info_page
+
+    del setup_info
     
     # Parse BzImage header
     header = setup_header.from_buffer(kernel, 0x1f1)
@@ -1778,7 +1794,8 @@ def load_kernel(kernel, cmdline, ramdisk, vtl, config, sign_key):
     params.hdr.ramdisk_image = ramdisk_pages
     params.hdr.ramdisk_size = len(ramdisk)
     params.acpi_rsdp_addr = 0xe0000
-    params.cc_blob_address = sev_info_page
+    #params.cc_blob_address = sev_info_page
+    params.hdr.setup_data = setup_page
     # give 1GB to the kernel
     params.e820_entries = 8
     params.e820_table[0].addr = 0
