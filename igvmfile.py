@@ -1711,6 +1711,10 @@ def load_kernel(kernel, cmdline, ramdisk, vtl, config, sign_key):
     assert type(cmdline) is bytearray
     assert type(ramdisk) is bytearray
     state = IGVMFile(config, sign_key)
+
+    state.seek(0x00)
+    state.memory.allocate(0xa0000)
+
     state.setup_acpi()
     # VMSA page at 0x200000
     state.seek(ACPI_END_ADDR)
@@ -1761,19 +1765,10 @@ def load_kernel(kernel, cmdline, ramdisk, vtl, config, sign_key):
     vmlinux_bin = kernel[vmlinux_bin_start:]
     state.memory.write(kernel_base, vmlinux_bin)
     kernel_end = state.memory.allocate(0)
-
-    # Allocate BOOT_STACK
-    boot_stack_addr = kernel_end + BOOT_HEAP_SIZE
-    state.seek(boot_stack_addr)
-    state.memory.allocate(BOOT_STACK_SIZE)
-
-    # Allocate pgtable
-    pgtable_addr = kernel_base + header.init_size - INIT_PGTABLE_SIZE
-    state.seek(pgtable_addr)
-    state.memory.allocate(INIT_PGTABLE_SIZE)
     init_end = header.pref_address + header.init_size
+    state.memory.allocate(init_end - kernel_end)
     state.seek(init_end)
-    
+ 
     # setup architectural env (no paging is needed for 32-bit)
     state.setup_gdt()
     # allocate boot_params, cmdline and ramdisk pages
@@ -1797,9 +1792,9 @@ def load_kernel(kernel, cmdline, ramdisk, vtl, config, sign_key):
     #params.cc_blob_address = sev_info_page
     params.hdr.setup_data = setup_page
     # give 1GB to the kernel
-    params.e820_entries = 8
+    params.e820_entries = 5
     params.e820_table[0].addr = 0
-    params.e820_table[0].size = 0
+    params.e820_table[0].size = 0xa0000
     params.e820_table[0].type = E820_TYPE_RAM
     params.e820_table[1].addr = 0xa0000
     params.e820_table[1].size = 0x100000 - 0xa0000
@@ -1811,18 +1806,8 @@ def load_kernel(kernel, cmdline, ramdisk, vtl, config, sign_key):
     params.e820_table[3].size = 0x100000
     params.e820_table[3].type = E820_TYPE_RESERVED
     params.e820_table[4].addr = header.pref_address
-    params.e820_table[4].size = kernel_size
+    params.e820_table[4].size = end - header.pref_address
     params.e820_table[4].type = E820_TYPE_RAM
-    params.e820_table[5].addr = boot_stack_addr
-    params.e820_table[5].size = BOOT_STACK_SIZE
-    params.e820_table[5].type = E820_TYPE_RAM
-    params.e820_table[6].addr = pgtable_addr
-    params.e820_table[6].size = INIT_PGTABLE_SIZE
-    params.e820_table[6].type = E820_TYPE_RAM
-    params.e820_table[7].addr = init_end
-    params.e820_table[7].size = end - init_end
-    params.e820_table[7].type = E820_TYPE_RAM
-    #end = state.memory.allocate(, PGSIZE)
 
     del params  # kill reference to re-allow allocation
 
