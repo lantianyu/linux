@@ -90,6 +90,18 @@ enum cc_attr {
 	 * Examples include TDX Guest.
 	 */
 	CC_ATTR_HOTPLUG_DISABLED,
+
+	/**
+	 * @CC_ATTR_ACCESS_IOAPIC_ENCRYPTED: Guest VM IO-APIC is encrypted
+	 *
+	 * The platform/OS is running as a guest/virtual machine with
+	 * an IO-APIC that is emulated by a paravisor running in the
+	 * guest VM context. As such, the IO-APIC is accessed in the
+	 * encrypted portion of the guest physical address space.
+	 *
+	 * Examples include Hyper-V SEV-SNP guests using vTOM.
+	 */
+	CC_ATTR_ACCESS_IOAPIC_ENCRYPTED,
 };
 
 #ifdef CONFIG_ARCH_HAS_CC_PLATFORM
