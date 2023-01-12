@@ -37,6 +37,10 @@ struct ioremap_desc {
 	unsigned int flags;
 };
 
+/* Range of "other" addresses to treat as encrypted when remapping */
+resource_size_t other_encrypted_start;
+resource_size_t other_encrypted_end;
+
 /*
  * Fix up the linear direct mapping of the kernel to avoid cache attribute
  * conflicts.
@@ -108,13 +112,34 @@ static unsigned int __ioremap_check_encrypted(struct resource *res)
 }
 
 /*
+ * Allow a hypervisor to specify an additional range of addresses to
+ * treat as encrypted when remapping.
+ */
+void ioremap_set_encrypted_range(resource_size_t addr, unsigned long size)
+{
+	other_encrypted_start = addr;
+	other_encrypted_end = addr + size - 1;
+}
+
+/*
  * The EFI runtime services data area is not covered by walk_mem_res(), but must
- * be mapped encrypted when SEV is active.
+ * be mapped encrypted when SEV is active. Also check the hypervisor specified
+ * "other" address range to treat as encrypted.
  */
 static void __ioremap_check_other(resource_size_t addr, struct ioremap_desc *desc)
 {
 	if (!cc_platform_has(CC_ATTR_GUEST_MEM_ENCRYPT))
 		return;
+
+	/*
+	 * Check for an address within the "other" encrypted address range. If such
+	 * a range is set, it must include the entire space used by the device,
+	 * so we don't need to deal with a partial fit.
+	 */
+	if ((addr >= other_encrypted_start) && (addr <= other_encrypted_end)) {
+		desc->flags |= IORES_MAP_ENCRYPTED;
+		return;
+	}
 
 	if (!IS_ENABLED(CONFIG_EFI))
 		return;

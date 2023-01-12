@@ -169,6 +169,8 @@ static inline unsigned int isa_virt_to_bus(volatile void *address)
 }
 #define isa_bus_to_virt		phys_to_virt
 
+extern void ioremap_set_encrypted_range(resource_size_t addr, unsigned long size);
+
 /*
  * The default ioremap() behavior is non-cached; if you need something
  * else, you probably want one of the following.
