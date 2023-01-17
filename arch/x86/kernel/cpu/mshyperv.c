@@ -508,6 +508,9 @@ static void __init ms_hyperv_init_platform(void)
 		 * bios regions and reserve resources are not
 		 * available. Set these callback to NULL.
 		 */
+		x86_platform.legacy.rtc = 0;
+		x86_platform.set_wallclock = set_rtc_noop;
+		x86_platform.get_wallclock = get_rtc_noop;
 		x86_platform.legacy.reserve_bios_regions = x86_init_noop;
 		x86_init.resources.probe_roms = x86_init_noop;
 		x86_init.resources.reserve_resources = x86_init_noop;
