@@ -32,6 +32,12 @@
 #include <asm/nmi.h>
 #include <clocksource/hyperv_timer.h>
 #include <asm/numa.h>
+#include <asm/coco.h>
+#include <asm/io_apic.h>
+#include <asm/svm.h>
+#include <asm/sev.h>
+#include <asm/realmode.h>
+#include <asm/e820/api.h>
 
 /* Is Linux running as the root partition? */
 bool hv_root_partition;
@@ -251,6 +257,30 @@ static void __init hv_smp_prepare_cpus(unsigned int max_cpus)
 }
 #endif
 
+static u32 processor_count;
+
+static __init void hv_snp_get_smp_config(unsigned int early)
+{
+	if (!early) {
+		while (num_processors < processor_count) {
+			early_per_cpu(x86_cpu_to_apicid, num_processors) = num_processors;
+			early_per_cpu(x86_bios_cpu_apicid, num_processors) = num_processors;
+			physid_set(num_processors, phys_cpu_present_map);
+			set_cpu_possible(num_processors, true);
+			set_cpu_present(num_processors, true);
+			num_processors++;
+		}
+	}
+}
+
+struct memory_map_entry {
+	u64 starting_gpn;
+	u64 numpages;
+	u16 type;
+	u16 flags;
+	u32 reserved;
+};
+
 static void __init ms_hyperv_init_platform(void)
 {
 	int hv_max_functions_eax;
@@ -258,6 +288,11 @@ static void __init ms_hyperv_init_platform(void)
 	int hv_host_info_ebx;
 	int hv_host_info_ecx;
 	int hv_host_info_edx;
+	struct memory_map_entry *entry;
+	struct e820_entry *e820_entry;
+	u64 e820_end;
+	u64 ram_end;
+	u64 page;
 
 #ifdef CONFIG_PARAVIRT
 	pv_info.name = "Hyper-V";
@@ -465,6 +500,56 @@ static void __init ms_hyperv_init_platform(void)
 	 */
 	if (!(ms_hyperv.features & HV_ACCESS_TSC_INVARIANT))
 		mark_tsc_unstable("running on Hyper-V");
+
+	if (isolation_type_en_snp()) {
+		/*
+		 * Hyper-V enlightened snp guest boots kernel
+		 * directly without bootloader and so roms,
+		 * bios regions and reserve resources are not
+		 * available. Set these callback to NULL.
+		 */
+		x86_platform.legacy.reserve_bios_regions = x86_init_noop;
+		x86_init.resources.probe_roms = x86_init_noop;
+		x86_init.resources.reserve_resources = x86_init_noop;
+		x86_init.mpparse.find_smp_config = x86_init_noop;
+		x86_init.mpparse.get_smp_config = hv_snp_get_smp_config;
+
+		/*
+		 * Hyper-V SEV-SNP enlightened guest doesn't support ioapic
+		 * and legacy APIC page read/write. Switch to hv apic here.
+		 */
+		disable_ioapic_support();
+
+		/* Read processor number and memory layout. */
+		processor_count = *(u32 *)__va(EN_SEV_SNP_PROCESSOR_INFO_ADDR);
+		entry = (struct memory_map_entry *)(__va(EN_SEV_SNP_PROCESSOR_INFO_ADDR)
+				+ sizeof(struct memory_map_entry));
+
+		/*
+		 * E820 table in the memory just describes memory for
+		 * kernel, ACPI table, cmdline, boot params and ramdisk.
+		 * Hyper-V popoulates the rest memory layout in the EN_SEV_
+		 * SNP_PROCESSOR_INFO_ADDR.
+		 */
+		for (; entry->numpages != 0; entry++) {
+			e820_entry = &e820_table->entries[
+					e820_table->nr_entries - 1];
+			e820_end = e820_entry->addr + e820_entry->size;
+			ram_end = (entry->starting_gpn +
+				   entry->numpages) * PAGE_SIZE;
+
+			if (e820_end < entry->starting_gpn * PAGE_SIZE)
+				e820_end = entry->starting_gpn * PAGE_SIZE;
+
+			if (e820_end < ram_end) {
+				pr_info("Hyper-V: add e820 entry [mem %#018Lx-%#018Lx]\n", e820_end, ram_end - 1);
+				e820__range_add(e820_end, ram_end - e820_end,
+						E820_TYPE_RAM);
+				for (page = e820_end; page < ram_end; page += PAGE_SIZE)
+					pvalidate((unsigned long)__va(page), RMP_PG_SIZE_4K, true);
+			}
+		}
+	}
 
 	hardlockup_detector_disable();
 }
