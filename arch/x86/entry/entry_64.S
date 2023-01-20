@@ -573,6 +573,66 @@ SYM_CODE_START(\asmsym)
 _ASM_NOKPROBE(\asmsym)
 SYM_CODE_END(\asmsym)
 .endm
+/*
+ * idtentry_hv - Macro to generate entry stub for #HV
+ * @vector:		Vector number
+ * @asmsym:		ASM symbol for the entry point
+ * @cfunc:		C function to be called
+ *
+ * The macro emits code to set up the kernel context for #HV. The #HV handler
+ * runs on an IST stack and needs to be able to support nested #HV exceptions.
+ *
+ * To make this work the #HV entry code tries its best to pretend it doesn't use
+ * an IST stack by switching to the task stack if coming from user-space (which
+ * includes early SYSCALL entry path) or back to the stack in the IRET frame if
+ * entered from kernel-mode.
+ *
+ * If entered from kernel-mode the return stack is validated first, and if it is
+ * not safe to use (e.g. because it points to the entry stack) the #HV handler
+ * will switch to a fall-back stack (HV2) and call a special handler function.
+ *
+ * The macro is only used for one vector, but it is planned to be extended in
+ * the future for the #HV exception.
+ */
+.macro idtentry_hv vector asmsym cfunc
+SYM_CODE_START(\asmsym)
+	UNWIND_HINT_IRET_REGS
+	ENDBR
+	ASM_CLAC
+	pushq	$-1			/* ORIG_RAX: no syscall to restart */
+
+	testb	$3, CS-ORIG_RAX(%rsp)
+	jnz	.Lfrom_usermode_switch_stack_\@
+
+	call	paranoid_entry
+
+	UNWIND_HINT_REGS
+
+	/*
+	 * Switch off the IST stack to make it free for nested exceptions.
+	 */
+	movq	%rsp, %rdi		/* pt_regs pointer */
+	call	hv_switch_off_ist
+	movq	%rax, %rsp		/* Switch to new stack */
+
+	ENCODE_FRAME_POINTER
+	UNWIND_HINT_REGS
+
+	/* Update pt_regs */
+	movq	ORIG_RAX(%rsp), %rsi	/* get error code into 2nd argument*/
+	movq	$-1, ORIG_RAX(%rsp)	/* no syscall to restart */
+
+	movq	%rsp, %rdi		/* pt_regs pointer */
+	call	kernel_\cfunc
+
+	jmp	paranoid_exit
+
+.Lfrom_usermode_switch_stack_\@:
+	idtentry_body user_\cfunc, has_error_code=1
+
+_ASM_NOKPROBE(\asmsym)
+SYM_CODE_END(\asmsym)
+.endm
 #endif
 
 /*
