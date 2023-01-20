@@ -819,6 +819,64 @@ sync:
 
 	return regs_ret;
 }
+
+asmlinkage __visible noinstr struct pt_regs *hv_switch_off_ist(struct pt_regs *regs)
+{
+	unsigned long sp, *stack;
+	struct stack_info info;
+	struct pt_regs *regs_ret;
+
+	/*
+	 * In the SYSCALL entry path the RSP value comes from user-space - don't
+	 * trust it and switch to the current kernel stack
+	 */
+	if (ip_within_syscall_gap(regs)) {
+		sp = this_cpu_read(pcpu_hot.top_of_stack);
+		goto sync;
+	}
+
+	/*
+	 * From here on the RSP value is trusted. Now check whether entry
+	 * happened from a safe stack. Not safe are the entry or unknown stacks,
+	 * use the fall-back stack instead in this case.
+	 */
+	sp    = regs->sp;
+	stack = (unsigned long *)sp;
+
+	/*
+	 * We support nested #HV exceptions once the IST stack is
+	 * switched out. The HV can always inject an #HV, but as per
+	 * GHCB specs, the HV will not inject another #HV, if
+	 * PendingEvent.NoFurtherSignal is set and we only clear this
+	 * after switching out the IST stack and handling the current
+	 * #HV. But there is still a window before the IST stack is
+	 * switched out, where a malicious HV can inject nested #HV.
+	 * The code below checks the interrupted stack to check if
+	 * it is the IST stack, and if so panic as this is
+	 * not supported and this nested #HV would have corrupted
+	 * the iret frame of the previous #HV on the IST stack.
+	 */
+	if (get_stack_info_noinstr(stack, current, &info) &&
+	    (info.type == (STACK_TYPE_EXCEPTION + ESTACK_HV) ||
+	     info.type == (STACK_TYPE_EXCEPTION + ESTACK_HV2)))
+		panic("Nested #HV exception, HV IST corrupted, stack type = %d\n", info.type);
+
+	if (!get_stack_info_noinstr(stack, current, &info) || info.type == STACK_TYPE_ENTRY ||
+	    info.type > STACK_TYPE_EXCEPTION_LAST)
+		sp = __this_cpu_ist_top_va(HV2);
+sync:
+	/*
+	 * Found a safe stack - switch to it as if the entry didn't happen via
+	 * IST stack. The code below only copies pt_regs, the real switch happens
+	 * in assembly code.
+	 */
+	sp = ALIGN_DOWN(sp, 8) - sizeof(*regs_ret);
+
+	regs_ret = (struct pt_regs *)sp;
+	*regs_ret = *regs;
+
+	return regs_ret;
+}
 #endif
 
 asmlinkage __visible noinstr struct pt_regs *fixup_bad_iret(struct pt_regs *bad_regs)
