@@ -1503,5 +1503,7 @@ void __init trap_init(void)
 	cpu_init_exception_handling();
 	/* Setup traps as cpu_init() might #GP */
 	idt_setup_traps();
+	sev_snp_init_hv_handling();
+
 	cpu_init();
 }
