@@ -431,7 +431,7 @@ SYM_CODE_END(\asmsym)
 
 #ifdef CONFIG_AMD_MEM_ENCRYPT
 /**
- * idtentry_vc - Macro to generate entry stub for #VC
+ * idtentry_sev - Macro to generate entry stub for #VC
  * @vector:		Vector number
  * @asmsym:		ASM symbol for the entry point
  * @cfunc:		C function to be called
@@ -450,13 +450,17 @@ SYM_CODE_END(\asmsym)
  *
  * The macro is only used for one vector, but it is planned to be extended in
  * the future for the #HV exception.
- */
-.macro idtentry_vc vector asmsym cfunc
+*/
+.macro idtentry_sev vector asmsym cfunc has_error_code:req
 SYM_CODE_START(\asmsym)
 	UNWIND_HINT_IRET_ENTRY
 	ENDBR
 	ASM_CLAC
 	cld
+
+	.if \vector == X86_TRAP_HV
+		pushq	$-1			/* ORIG_RAX: no syscall */
+	.endif
 
 	/*
 	 * If the entry is from userspace, switch stacks and treat it as
@@ -480,7 +484,12 @@ SYM_CODE_START(\asmsym)
 	 * stack.
 	 */
 	movq	%rsp, %rdi		/* pt_regs pointer */
-	call	vc_switch_off_ist
+	.if \vector == X86_TRAP_VC
+		call	vc_switch_off_ist
+	.else
+		call	hv_switch_off_ist	
+	.endif
+
 	movq	%rax, %rsp		/* Switch to new stack */
 
 	ENCODE_FRAME_POINTER
@@ -503,10 +512,7 @@ SYM_CODE_START(\asmsym)
 
 	/* Switch to the regular task stack */
 .Lfrom_usermode_switch_stack_\@:
-	idtentry_body user_\cfunc, has_error_code=1
-
-_ASM_NOKPROBE(\asmsym)
-SYM_CODE_END(\asmsym)
+	idtentry_body user_\cfunc, \has_error_code
 .endm
 #endif
 
