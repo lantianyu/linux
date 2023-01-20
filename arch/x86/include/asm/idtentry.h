@@ -13,6 +13,12 @@
 
 #include <asm/irq_stack.h>
 
+#ifdef CONFIG_AMD_MEM_ENCRYPT
+noinstr void irqentry_exit_hv_cond(struct pt_regs *regs, irqentry_state_t state);
+#else
+#define irqentry_exit_hv_cond(regs, state)	irqentry_exit(regs, state)
+#endif
+
 /**
  * DECLARE_IDTENTRY - Declare functions for simple IDT entry points
  *		      No error code pushed by hardware
@@ -201,7 +207,7 @@ __visible noinstr void func(struct pt_regs *regs,			\
 	kvm_set_cpu_l1tf_flush_l1d();					\
 	run_irq_on_irqstack_cond(__##func, regs, vector);		\
 	instrumentation_end();						\
-	irqentry_exit(regs, state);					\
+	irqentry_exit_hv_cond(regs, state);				\
 }									\
 									\
 static noinline void __##func(struct pt_regs *regs, u32 vector)
@@ -241,7 +247,7 @@ __visible noinstr void func(struct pt_regs *regs)			\
 	kvm_set_cpu_l1tf_flush_l1d();					\
 	run_sysvec_on_irqstack_cond(__##func, regs);			\
 	instrumentation_end();						\
-	irqentry_exit(regs, state);					\
+	irqentry_exit_hv_cond(regs, state);				\
 }									\
 									\
 static noinline void __##func(struct pt_regs *regs)
@@ -270,7 +276,7 @@ __visible noinstr void func(struct pt_regs *regs)			\
 	__##func (regs);						\
 	__irq_exit_raw();						\
 	instrumentation_end();						\
-	irqentry_exit(regs, state);					\
+	irqentry_exit_hv_cond(regs, state);				\
 }									\
 									\
 static __always_inline void __##func(struct pt_regs *regs)
