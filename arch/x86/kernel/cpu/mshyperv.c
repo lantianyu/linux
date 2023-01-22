@@ -273,6 +273,18 @@ static void __init ms_hyperv_init_platform(void)
 
 	hv_max_functions_eax = cpuid_eax(HYPERV_CPUID_VENDOR_AND_MAX_FUNCTIONS);
 
+	/*
+	 * Add custom configuration for SEV-SNP Enlightened guest
+	 */
+	if (cc_platform_has(CC_ATTR_GUEST_SEV_SNP)) {
+		ms_hyperv.features |= HV_ACCESS_FREQUENCY_MSRS;
+		ms_hyperv.misc_features |= HV_FEATURE_FREQUENCY_MSRS_AVAILABLE;
+		ms_hyperv.misc_features &= ~HV_FEATURE_GUEST_CRASH_MSR_AVAILABLE;
+		ms_hyperv.hints |= HV_DEPRECATING_AEOI_RECOMMENDED;
+		ms_hyperv.hints |= HV_X64_APIC_ACCESS_RECOMMENDED;
+		ms_hyperv.hints |= HV_X64_CLUSTER_IPI_RECOMMENDED;
+	}
+
 	pr_info("Hyper-V: privilege flags low 0x%x, high 0x%x, hints 0x%x, misc 0x%x\n",
 		ms_hyperv.features, ms_hyperv.priv_high, ms_hyperv.hints,
 		ms_hyperv.misc_features);
@@ -331,7 +343,9 @@ static void __init ms_hyperv_init_platform(void)
 		pr_info("Hyper-V: Isolation Config: Group A 0x%x, Group B 0x%x\n",
 			ms_hyperv.isolation_config_a, ms_hyperv.isolation_config_b);
 
-		if (hv_get_isolation_type() == HV_ISOLATION_TYPE_SNP)
+		if (cc_platform_has(CC_ATTR_GUEST_SEV_SNP))
+			static_branch_enable(&isolation_type_en_snp);
+		else if (hv_get_isolation_type() == HV_ISOLATION_TYPE_SNP)
 			static_branch_enable(&isolation_type_snp);
 	}
 
