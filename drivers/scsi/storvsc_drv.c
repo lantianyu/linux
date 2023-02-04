@@ -749,9 +749,9 @@ static void handle_sc_creation(struct vmbus_channel *new_sc)
 	stor_device->stor_chns[new_sc->target_cpu] = new_sc;
 	cpumask_set_cpu(new_sc->target_cpu, &stor_device->alloced_cpus);
 
-//	if (hv_bounce_resources_reserve(device->channel,
-//			stor_device->max_transfer_bytes))
-//		pr_warn("Fail to reserve bounce buffer\n");
+	if (hv_bounce_resources_reserve(device->channel,
+			stor_device->max_transfer_bytes))
+		pr_warn("Fail to reserve bounce buffer\n");
 }
 
 static void  handle_multichannel_storage(struct hv_device *device, int max_chns)
@@ -1001,12 +1001,12 @@ static int storvsc_channel_init(struct hv_device *device, bool is_fc)
 	 * operations under low memory conditions, that cannot rely on
 	 * additional resources to be allocated.
 	 */
-//	ret =  hv_bounce_resources_reserve(device->channel,
-//			stor_device->max_transfer_bytes);
-//	if (ret < 0) {
-//		pr_warn("Fail to reserve bounce buffer\n");
-//		goto done;
-//	}
+	ret =  hv_bounce_resources_reserve(device->channel,
+			stor_device->max_transfer_bytes);
+	if (ret < 0) {
+		pr_warn("Fail to reserve bounce buffer\n");
+		goto done;
+	}
 
 	if (!is_fc)
 		goto done;
@@ -1581,7 +1581,7 @@ found_channel:
 
 	vstor_packet->operation = VSTOR_OPERATION_EXECUTE_SRB;
 
-	//request->bounce_pkt = NULL;
+	request->bounce_pkt = NULL;
 	if (request->payload->range.len) {
 		struct vmscsi_request *vm_srb = &request->vstor_packet.vm_srb;
 
