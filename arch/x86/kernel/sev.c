@@ -184,7 +184,7 @@ static void do_exc_hv(struct pt_regs *regs)
 		case X86_PLATFORM_IPI_VECTOR:
 			sysvec_x86_platform_ipi(regs);
 			break;
-#endif			
+#endif
 		case 0x0:
 			break;
 		default:
@@ -858,7 +858,7 @@ static int snp_page_state_vmgexit(struct ghcb *ghcb, struct snp_page_state_chang
 		ret = vmgexit_page_state_change(ghcb, data);
 		/* Page State Change VMGEXIT can pass error code through exit_info_2. */
 		if (ret || ghcb->save.sw_exit_info_2) {
-			//printk("exit_info1=%llx exit_info2=%llx\n", ghcb->save.sw_exit_info_1, ghcb->save.sw_exit_info_2);
+			printk("exit_info1=%llx exit_info2=%llx\n", ghcb->save.sw_exit_info_1, ghcb->save.sw_exit_info_2);
 			break;
 		}
 	}

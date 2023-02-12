@@ -430,8 +430,10 @@ static struct hv_bounce_pkt *hv_bounce_resources_assign(
 	u32 r;
 
 	bounce_pkt = hv_bounce_pkt_assign(channel);
-	if (unlikely(!bounce_pkt))
+	if (unlikely(!bounce_pkt)) {
+		pr_info("Fail to allocate bounce buffer.\n");
 		return NULL;
+	}
 	bounce_pkt->flags = io_type;
 	INIT_LIST_HEAD(&bounce_pkt->bounce_page_head);
 	for (r = 0; r < rangecount; r++) {
@@ -446,9 +448,11 @@ static struct hv_bounce_pkt *hv_bounce_resources_assign(
 			struct hv_bounce_page_list *bounce_page;
 			u32 copy_len = min(len, ((u32)HV_HYP_PAGE_SIZE - offset));
 
-			bounce_page  = hv_bounce_page_assign(channel);
-			if (unlikely(!bounce_page))
+			bounce_page = hv_bounce_page_assign(channel);
+			if (unlikely(!bounce_page)) {
+				pr_info("Fail to allocate bounce buffer2.\n");
 				goto err_free;
+			}
 			bounce_page->va = (unsigned long)
 				__va(range[r].pfn_array[p] << PAGE_SHIFT);
 			bounce_page->offset = offset;
@@ -484,8 +488,10 @@ int vmbus_sendpacket_pagebuffer_bounce(
 
 	bounce_pkt = hv_bounce_resources_assign(channel, desc->rangecount,
 			(struct hv_page_range *)desc->range, io_type);
-	if (unlikely(!bounce_pkt))
+	if (unlikely(!bounce_pkt)) {
+		pr_info("Fail to allocate bounce buffer2.\n");
 		return -EAGAIN;
+	}
 
 	/*
 	 * This assignment must be before hv_ringbuffer_write(), because as

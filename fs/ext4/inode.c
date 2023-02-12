@@ -5744,6 +5744,13 @@ int ext4_mark_iloc_dirty(handle_t *handle,
 	/* ext4_do_update_inode() does jbd2_journal_dirty_metadata */
 	err = ext4_do_update_inode(handle, inode, iloc);
 	put_bh(iloc->bh);
+
+//	err = __ext4_get_inode_loc(inode->i_sb, inode, iloc, 0, NULL);
+//        if (err) {
+//		pr_info("Fail to get inode1.\n");
+//		dump_stack();
+//	}
+
 	return err;
 }
 
@@ -5757,6 +5764,7 @@ ext4_reserve_inode_write(handle_t *handle, struct inode *inode,
 			 struct ext4_iloc *iloc)
 {
 	int err;
+	ext4_fsblk_t err_blk = 0;
 
 	if (unlikely(ext4_forced_shutdown(EXT4_SB(inode->i_sb))))
 		return -EIO;
@@ -5770,7 +5778,14 @@ ext4_reserve_inode_write(handle_t *handle, struct inode *inode,
 			brelse(iloc->bh);
 			iloc->bh = NULL;
 		}
+
+//		err = __ext4_get_inode_loc(inode->i_sb, inode, iloc, 0, err_blk);
+//		if (err) {
+//			pr_info("Fail to get inode2.\n");
+//			dump_stack();
+//		}
 	}
+
 	ext4_std_error(inode->i_sb, err);
 	return err;
 }

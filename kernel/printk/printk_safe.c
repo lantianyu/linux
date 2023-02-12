@@ -77,6 +77,8 @@ void hv_sev_debugbreak(u32 val)
 
 asmlinkage int vprintk(const char *fmt, va_list args)
 {
+	va_list args2;
+
 #ifdef CONFIG_KGDB_KDB
 	/* Allow to pass printk() to kdb but avoid a recursion. */
 	if (unlikely(kdb_trap_printk && kdb_printf_cpu < 0))
@@ -87,8 +89,11 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 	 * Disable sev debug function here and this cause
 	 * VM shuts down on the ACI host.
 	 */
-//	if (sev_snp_active())
-//		hv_sev_printf(fmt, args);
+	if (sev_snp_active()) {
+		va_copy(args2, args);
+		hv_sev_printf(fmt, args2);
+		va_end(args2);
+	}
 
 	/*
 	 * Use the main logbuf even in NMI. But avoid calling console

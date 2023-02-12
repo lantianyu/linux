@@ -259,8 +259,8 @@ static void __init hv_smp_prepare_cpus(unsigned int max_cpus)
 }
 #endif
 
-static __init int hv_snp_set_rtc_noop(const struct timespec64 *now) { return -EINVAL; }
-static __init void hv_snp_get_rtc_noop(struct timespec64 *now) { }
+static int hv_snp_set_rtc_noop(const struct timespec64 *now) { return -EINVAL; }
+static  void hv_snp_get_rtc_noop(struct timespec64 *now) { }
 
 static u32 processor_count;
 
