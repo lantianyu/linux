@@ -44,6 +44,8 @@ numa_node_to_proximity_domain_info(int node)
 	return proximity_domain_info;
 }
 
+#define VTPM_BASE_ADDRESS 0xfed40000
+
 struct ms_hyperv_info {
 	u32 features;
 	u32 priv_high;
