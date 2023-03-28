@@ -432,7 +432,6 @@ int hv_common_cpu_die(unsigned int cpu)
 	 * If a previously offlined CPU is brought back online again, the
 	 * originally allocated memory is reused in hv_common_cpu_init().
 	 */
-
 	return 0;
 }
 
