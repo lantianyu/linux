@@ -1080,7 +1080,7 @@ static int wakeup_cpu_via_vmgexit(int apic_id, unsigned long start_ip)
 	 *   SEV_FEATURES (matches the SEV STATUS MSR right shifted 2 bits)
 	 */
 	vmsa->vmpl		= 0;
-	vmsa->sev_features	= sev_status >> 2;
+	vmsa->sev_features.val = sev_status >> 2;
 
 	/* Switch the page over to a VMSA page now that it is initialized */
 	ret = snp_set_vmsa(vmsa, true);
@@ -1097,7 +1097,7 @@ static int wakeup_cpu_via_vmgexit(int apic_id, unsigned long start_ip)
 	ghcb = __sev_get_ghcb(&state);
 
 	vc_ghcb_invalidate(ghcb);
-	ghcb_set_rax(ghcb, vmsa->sev_features);
+	ghcb_set_rax(ghcb, vmsa->sev_features.val);
 	ghcb_set_sw_exit_code(ghcb, SVM_VMGEXIT_AP_CREATION);
 	ghcb_set_sw_exit_info_1(ghcb, ((u64)apic_id << 32) | SVM_VMGEXIT_AP_CREATE);
 	ghcb_set_sw_exit_info_2(ghcb, __pa(vmsa));

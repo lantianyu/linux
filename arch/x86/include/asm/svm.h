@@ -423,7 +423,20 @@ struct sev_es_save_area {
 	u64 guest_exit_info_2;
 	u64 guest_exit_int_info;
 	u64 guest_nrip;
-	u64 sev_features;
+	union {
+		struct {
+			u64 snp                     : 1;
+			u64 vtom                    : 1;
+			u64 reflectvc               : 1;
+			u64 restrict_injection      : 1;
+			u64 alternate_injection     : 1;
+			u64 full_debug              : 1;
+			u64 reserved1               : 1;
+			u64 snpbtb_isolation        : 1;
+			u64 resrved2                : 56;
+		};
+		u64 val;
+	} sev_features;
 	u64 vintr_ctrl;
 	u64 guest_exit_code;
 	u64 virtual_tom;
