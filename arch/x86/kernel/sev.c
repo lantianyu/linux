@@ -1433,6 +1433,7 @@ static enum es_result vc_handle_msr(struct ghcb *ghcb, struct es_em_ctxt *ctxt)
 		switch (regs->cx) {
 		case MSR_AMD64_OSVW_ID_LENGTH:
 		case MSR_K8_TSEG_ADDR:
+		case MSR_F10H_DECFG:
 			if (!exit_info_1) {
 				regs->dx = 0;
 				regs->ax = 0;
