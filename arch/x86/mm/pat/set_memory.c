@@ -33,6 +33,7 @@
 #include <asm/memtype.h>
 #include <asm/hyperv-tlfs.h>
 #include <asm/mshyperv.h>
+#include <asm/mem_encrypt.h>
 
 #include "../mm_internal.h"
 
