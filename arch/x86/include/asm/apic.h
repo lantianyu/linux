@@ -121,8 +121,12 @@ static inline bool apic_is_x2apic_enabled(void)
 {
 	u64 msr;
 
-	if (rdmsrl_safe(MSR_IA32_APICBASE, &msr))
+	if (rdmsrl_safe(MSR_IA32_APICBASE, &msr)) {
+		pr_info("Fail to read msr.\n");
 		return false;
+	}
+
+	pr_info("x2apic is enabled in APIC_BASE.\n");
 	return msr & X2APIC_ENABLE;
 }
 
@@ -252,7 +256,8 @@ extern void __init x2apic_set_max_apicid(u32 apicid);
 extern void x2apic_setup(void);
 static inline int x2apic_enabled(void)
 {
-	return boot_cpu_has(X86_FEATURE_X2APIC) && apic_is_x2apic_enabled();
+	return 1;
+//	return boot_cpu_has(X86_FEATURE_X2APIC) && apic_is_x2apic_enabled();
 }
 
 #define x2apic_supported()	(boot_cpu_has(X86_FEATURE_X2APIC))

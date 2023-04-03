@@ -1425,6 +1425,22 @@ static enum es_result vc_handle_msr(struct ghcb *ghcb, struct es_em_ctxt *ctxt)
 	/* Is it a WRMSR? */
 	exit_info_1 = (ctxt->insn.opcode.bytes[1] == 0x30) ? 1 : 0;
 
+	if (cc_platform_has(CC_ATTR_GUEST_SEV_SNP)) {
+		/*
+		 * Handle security-sensitive MSRs here.
+		 * TODO: incomplete list.
+		 */
+		switch (regs->cx) {
+		case MSR_AMD64_OSVW_ID_LENGTH:
+		case MSR_K8_TSEG_ADDR:
+			if (!exit_info_1) {
+				regs->dx = 0;
+				regs->ax = 0;
+			}
+			return ES_OK;
+		}
+	}
+
 	ghcb_set_rcx(ghcb, regs->cx);
 	if (exit_info_1) {
 		ghcb_set_rax(ghcb, regs->ax);
