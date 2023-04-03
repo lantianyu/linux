@@ -355,6 +355,12 @@ static void __init ms_hyperv_init_platform(void)
 		ms_hyperv.features, ms_hyperv.priv_high, ms_hyperv.hints,
 		ms_hyperv.misc_features);
 
+	/*
+	 * Add custom configuration for SEV-SNP Enlightened guest
+	 */
+	if (cc_platform_has(CC_ATTR_GUEST_SEV_SNP))
+	          ms_hyperv.hints |= HV_DEPRECATING_AEOI_RECOMMENDED;
+
 	ms_hyperv.max_vp_index = cpuid_eax(HYPERV_CPUID_IMPLEMENT_LIMITS);
 	ms_hyperv.max_lp_index = cpuid_ebx(HYPERV_CPUID_IMPLEMENT_LIMITS);
 
