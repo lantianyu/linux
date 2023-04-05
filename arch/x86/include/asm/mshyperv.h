@@ -6,10 +6,9 @@
 #include <linux/nmi.h>
 #include <linux/msi.h>
 #include <asm/io.h>
-#include <asm/hyperv-tlfs.h>
 #include <asm/nospec-branch.h>
 #include <asm/paravirt.h>
-#include <asm/mshyperv.h>
+#include <asm-generic/hyperv-defs.h>
 
 union hv_ghcb;
 
