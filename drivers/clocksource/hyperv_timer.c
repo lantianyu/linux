@@ -536,6 +536,9 @@ static bool __init hv_init_tsc_clocksource(void)
 		hyperv_cs_msr.rating = 250;
 	}
 
+	if (!(ms_hyperv.features & HV_MSR_REFERENCE_TSC_AVAILABLE))
+		return false;
+
 	hv_read_reference_counter = read_hv_clock_tsc;
 
 	/*
