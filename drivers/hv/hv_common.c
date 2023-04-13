@@ -142,7 +142,7 @@ int hv_common_cpu_init(unsigned int cpu)
 		*outputarg = (char *)(*inputarg) + HV_HYP_PAGE_SIZE;
 	}
 
-	msr_vp_index = hv_get_register(HV_REGISTER_VP_INDEX);
+	msr_vp_index = hv_get_register(HV_SYN_REG_VP_INDEX);
 
 	hv_vp_index[cpu] = msr_vp_index;
 
@@ -246,7 +246,7 @@ EXPORT_SYMBOL_GPL(hv_is_hibernation_supported);
  */
 static u64 __hv_read_ref_counter(void)
 {
-	return hv_get_register(HV_REGISTER_TIME_REF_COUNT);
+	return hv_get_register(HV_SYN_REG_TIME_REF_COUNT);
 }
 
 u64 (*hv_read_reference_counter)(void) = __hv_read_ref_counter;
