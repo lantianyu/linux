@@ -10,6 +10,10 @@
 #include <asm/paravirt.h>
 #include <asm-generic/hyperv-defs.h>
 
+#define HV_VTL_NORMAL 0x0
+#define HV_VTL_SECURE 0x1
+#define HV_VTL_MGMT   0x2
+
 union hv_ghcb;
 
 DECLARE_STATIC_KEY_FALSE(isolation_type_snp);
@@ -270,6 +274,12 @@ static inline int hv_set_mem_host_visibility(unsigned long addr, int numpages,
 }
 #endif /* CONFIG_HYPERV */
 
+
+#ifdef CONFIG_HYPERV_VTL_MODE
+void __init hv_vtl_init_platform(void);
+#else
+static inline void __init hv_vtl_init_platform(void) {}
+#endif
 
 #include <asm-generic/mshyperv.h>
 
