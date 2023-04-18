@@ -21,7 +21,7 @@
 #include <uapi/asm/mtrr.h>
 #include <uapi/linux/mshv.h>
 
-#include "../../../kernel/fpu/legacy.h"
+#include "../../kernel/fpu/legacy.h"
 #include "mshv.h"
 #include "mshv_vtl.h"
 #include "hyperv_vmbus.h"
@@ -1539,7 +1539,7 @@ static const struct vm_operations_struct mshv_vtl_low_vm_ops = {
 static int mshv_vtl_low_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	vma->vm_ops = &mshv_vtl_low_vm_ops;
-	vm_flags_set(vma, VM_HUGEPAGE | VM_MIXEDMAP);
+	vma->vm_flags |= VM_HUGEPAGE | VM_MIXEDMAP;
 	return 0;
 }
 
