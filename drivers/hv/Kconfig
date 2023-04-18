@@ -85,6 +85,7 @@ config MSHV_ROOT
 config MSHV_VTL
 	tristate "Microsoft Hyper-V VTL driver"
 	depends on MSHV && X86 && TRANSPARENT_HUGEPAGE
+	select CPUMASK_OFFSTACK
 	help
 	  Select this option to enable Hyper-V VTL driver.
 	  Virtual Secure Mode (VSM) is a set of hypervisor capabilities and
