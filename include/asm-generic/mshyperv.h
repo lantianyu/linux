@@ -214,7 +214,6 @@ static inline int __cpumask_to_vpset(struct hv_vpset *vpset,
 				    bool (*func)(int cpu))
 {
 	int cpu, vcpu, vcpu_bank, vcpu_offset, nr_bank = 1;
-	int max_vcpu_bank = hv_max_vp_index / HV_VCPUS_PER_SPARSE_BANK;
 
 	/* valid_bank_mask can represent up to 64 banks */
 	if (hv_max_vp_index / 64 >= 64)
