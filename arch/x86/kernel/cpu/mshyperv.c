@@ -504,6 +504,13 @@ static void __init ms_hyperv_init_platform(void)
 	smp_ops.smp_prepare_boot_cpu = hv_smp_prepare_boot_cpu;
 	if (hv_root_partition)
 		smp_ops.smp_prepare_cpus = hv_smp_prepare_cpus;
+
+	/*
+	 *  Override wakeup_secondary_cpu_64 callback for SEV-SNP
+	 *  enlightened guest.
+	 */
+	if (hv_isolation_type_en_snp())
+		apic->wakeup_secondary_cpu_64 = hv_snp_boot_ap;
 # endif
 
 	/*
