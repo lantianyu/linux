@@ -2279,7 +2279,7 @@ DEFINE_IDTENTRY_HV_KERNEL(exc_hv_injection)
 {
 	irqentry_state_t irq_state;
 
-	irq_state = irqentry_nmi_enter(regs);
+	irq_state = irqentry_enter(regs);
 	instrumentation_begin();
 
 	if (!hv_raw_handle_exception(regs)) {
@@ -2295,7 +2295,7 @@ DEFINE_IDTENTRY_HV_KERNEL(exc_hv_injection)
 	}
 
 	instrumentation_end();
-	irqentry_nmi_exit(regs, irq_state);
+	irqentry_exit(regs, irq_state);
 }
 
 bool __init handle_vc_boot_ghcb(struct pt_regs *regs)
