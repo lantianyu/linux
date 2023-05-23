@@ -1365,7 +1365,7 @@ static int crypt_convert_block_aead(struct crypt_config *cc,
 
 		DMERR_LIMIT("%s: INTEGRITY AEAD ERROR, sector %llu direct %d ", bio_devname(ctx->bio_in, b),
 			    (unsigned long long)le64_to_cpu(*sector), bio_data_dir(ctx->bio_in) == WRITE);
-//		dump_stack();
+		//dump_stack();
 	}
 
 	if (!r && cc->iv_gen_ops && cc->iv_gen_ops->post)
@@ -2179,6 +2179,7 @@ static void kcryptd_async_done(struct crypto_async_request *async_req,
 			    (unsigned long long)le64_to_cpu(*org_sector_of_dmreq(cc, dmreq)),
 			    bio_data_dir(ctx->bio_in) == WRITE);
 		io->error = BLK_STS_PROTECTION;
+		//dump_stack();
 	} else if (error < 0)
 		io->error = BLK_STS_IOERR;
 

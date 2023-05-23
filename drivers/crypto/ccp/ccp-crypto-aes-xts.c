@@ -158,6 +158,8 @@ static int ccp_aes_xts_crypt(struct skcipher_request *req,
 					   req->dst, req->cryptlen, req->iv);
 		ret = encrypt ? crypto_skcipher_encrypt(&rctx->fallback_req) :
 				crypto_skcipher_decrypt(&rctx->fallback_req);
+		if (ret)
+			pr_info("ret %d\n", ret);
 		return ret;
 	}
 
@@ -181,6 +183,8 @@ static int ccp_aes_xts_crypt(struct skcipher_request *req,
 
 	ret = ccp_crypto_enqueue_request(&req->base, &rctx->cmd);
 
+	if (ret)
+		pr_info("ret2 %d\n", ret);
 	return ret;
 }
 

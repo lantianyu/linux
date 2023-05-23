@@ -2198,8 +2198,10 @@ static int atmel_aes_authenc_crypt(struct aead_request *req,
 	bool enc = (mode & AES_FLAGS_ENCRYPT);
 
 	/* Compute text length. */
-	if (!enc && req->cryptlen < authsize)
+	if (!enc && req->cryptlen < authsize) {
+		pr_info("%s %d \n", __func__, __LINE__);
 		return -EINVAL;
+	}
 	rctx->textlen = req->cryptlen - (enc ? 0 : authsize);
 
 	/*
@@ -2207,14 +2209,19 @@ static int atmel_aes_authenc_crypt(struct aead_request *req,
 	 * the SHA auto-padding can be used only on non-empty messages.
 	 * Hence a special case needs to be implemented for empty message.
 	 */
-	if (!rctx->textlen && !req->assoclen)
+	if (!rctx->textlen && !req->assoclen) {
+		pr_info("%s %d \n", __func__, __LINE__);
 		return -EINVAL;
+	}
 
 	rctx->base.mode = mode;
 	ctx->block_size = AES_BLOCK_SIZE;
 	ctx->is_aead = true;
 
-	return atmel_aes_handle_queue(ctx->dd, &req->base);
+	ret = atmel_aes_handle_queue(ctx->dd, &req->base);
+	pr_info("%s %d \n", __func__, __LINE__);
+
+	return ret;
 }
 
 static int atmel_aes_authenc_cbc_aes_encrypt(struct aead_request *req)

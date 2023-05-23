@@ -112,6 +112,12 @@ int crypto_aead_decrypt(struct aead_request *req)
 	else
 		ret = crypto_aead_alg(aead)->decrypt(req);
 	crypto_stats_aead_decrypt(cryptlen, alg, ret);
+
+	if (ret) {
+		pr_info("aead %s %s ret %d\n",
+		crypto_aead_alg(aead)->base.cra_name,
+			crypto_aead_alg(aead)->base.cra_driver_name, ret);	     
+	}
 	return ret;
 }
 EXPORT_SYMBOL_GPL(crypto_aead_decrypt);

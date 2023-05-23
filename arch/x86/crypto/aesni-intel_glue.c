@@ -866,8 +866,10 @@ static int xts_crypt(struct skcipher_request *req, bool encrypt)
 		req = &subreq;
 
 		err = skcipher_walk_virt(&walk, req, false);
-		if (!walk.nbytes)
+		if (!walk.nbytes) {
+			pr_info("%s %d\n", __func__, __LINE__);
 			return err;
+		}
 	} else {
 		tail = 0;
 	}
@@ -911,8 +913,11 @@ static int xts_crypt(struct skcipher_request *req, bool encrypt)
 					   req->iv);
 
 		err = skcipher_walk_virt(&walk, &subreq, false);
-		if (err)
+		 
+		if (err) {
+			pr_info("%s %d\n", __func__, __LINE__);
 			return err;
+		}
 
 		kernel_fpu_begin();
 		if (encrypt)
@@ -926,7 +931,12 @@ static int xts_crypt(struct skcipher_request *req, bool encrypt)
 		kernel_fpu_end();
 
 		err = skcipher_walk_done(&walk, 0);
+		if (err)
+			pr_info("%s %d\n", __func__, __LINE__);
 	}
+
+	if (err)
+		pr_info("%s %d\n", __func__, __LINE__);
 	return err;
 }
 

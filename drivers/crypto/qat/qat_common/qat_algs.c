@@ -976,13 +976,17 @@ static int qat_alg_aead_dec(struct aead_request *areq)
 	u32 cipher_len;
 
 	cipher_len = areq->cryptlen - digst_size;
-	if (cipher_len % AES_BLOCK_SIZE != 0)
+	if (cipher_len % AES_BLOCK_SIZE != 0) {
+		pr_info("fail to decrypt dec, %d\n", ret);
 		return -EINVAL;
+	}
 
 	ret = qat_alg_sgl_to_bufl(ctx->inst, areq->src, areq->dst, qat_req);
-	if (unlikely(ret))
+	if (unlikely(ret)) {
+		pr_info("fail to decrypt dec, %d\n", ret);
 		return ret;
-
+	}
+	
 	msg = &qat_req->req;
 	*msg = ctx->dec_fw_req;
 	qat_req->aead_ctx = ctx;
@@ -1003,6 +1007,8 @@ static int qat_alg_aead_dec(struct aead_request *areq)
 	if (ret == -ENOSPC)
 		qat_alg_free_bufl(ctx->inst, qat_req);
 
+	if (ret)
+		pr_info("fail to decrypt dec, %d\n", ret);
 	return ret;
 }
 
