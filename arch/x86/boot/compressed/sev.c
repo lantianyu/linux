@@ -375,7 +375,7 @@ static void enforce_vmpl0(void)
  * by the guest kernel. As and when a new feature is implemented in the
  * guest kernel, a corresponding bit should be added to the mask.
  */
-#define SNP_FEATURES_PRESENT	MSR_AMD64_SNP_DEBUG_SWAP
+#define SNP_FEATURES_PRESENT	MSR_AMD64_SNP_DEBUG_SWAP | MSR_AMD64_SNP_RESTRICTED_INJ
 
 u64 snp_get_unsupported_features(u64 status)
 {
