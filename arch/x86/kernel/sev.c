@@ -358,6 +358,7 @@ void check_hv_pending_irq_enable(void)
 	do_exc_hv(&regs);
 	asm volatile("sti" : : : "memory");
 }
+EXPORT_SYMBOL_GPL(check_hv_pending_irq_enable);
 
 void noinstr __sev_es_ist_exit(void)
 {
