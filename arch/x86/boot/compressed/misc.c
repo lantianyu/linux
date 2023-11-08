@@ -402,6 +402,7 @@ asmlinkage __visible void *extract_kernel(void *rmode, unsigned char *output)
 
 	init_default_io_ops();
 
+	ghcb_printf("d1\n");
 	/*
 	 * Detect TDX guest environment.
 	 *
@@ -410,6 +411,7 @@ asmlinkage __visible void *extract_kernel(void *rmode, unsigned char *output)
 	 */
 	early_tdx_detect();
 
+	ghcb_printf("d2\n");
 	console_init();
 
 	/*
@@ -453,6 +455,8 @@ asmlinkage __visible void *extract_kernel(void *rmode, unsigned char *output)
 	debug_putaddr(trampoline_32bit);
 #endif
 
+	ghcb_printf("d3\n");
+
 	choose_random_location((unsigned long)input_data, input_len,
 				(unsigned long *)&output,
 				needed_size,
@@ -490,8 +494,10 @@ asmlinkage __visible void *extract_kernel(void *rmode, unsigned char *output)
 	debug_puthex(entry_offset);
 	debug_putstr(").\n");
 
+	ghcb_printf("d4\n");
 	/* Disable exception handling before booting the kernel */
 	cleanup_exception_handling();
+	ghcb_printf("d5\n");
 
 	return output + entry_offset;
 }

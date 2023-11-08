@@ -1576,8 +1576,11 @@ static void __init init_ghcb(int cpu)
 
 	data = per_cpu(runtime_data, cpu);
 
+	pr_info("set memroy decrypted.\n");
 	err = early_set_memory_decrypted((unsigned long)&data->ghcb_page,
 					 sizeof(data->ghcb_page));
+
+	pr_info("set memroy decrypted end.\n");	
 	if (err)
 		panic("Can't map GHCBs unencrypted");
 

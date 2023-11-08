@@ -83,7 +83,7 @@ void cleanup_exception_handling(void)
 	 * SEV-ES guest.
 	 */
 	sev_es_shutdown_ghcb();
-
+	
 	/* Set a null-idt, disabling #PF and #VC handling */
 	boot_idt_desc.size    = 0;
 	boot_idt_desc.address = 0;

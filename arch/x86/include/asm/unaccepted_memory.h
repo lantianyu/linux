@@ -18,10 +18,10 @@ static inline void arch_accept_memory(phys_addr_t start, phys_addr_t end)
 	}
 }
 
-static inline struct efi_unaccepted_memory *efi_get_unaccepted_table(void)
-{
-	if (efi.unaccepted == EFI_INVALID_TABLE_ADDR)
-		return NULL;
-	return __va(efi.unaccepted);
-}
+//static inline struct efi_unaccepted_memory *efi_get_unaccepted_table(void)
+//{
+//	if (efi.unaccepted == EFI_INVALID_TABLE_ADDR)
+//		return NULL;
+//	return __va(efi.unaccepted);
+//}
 #endif
