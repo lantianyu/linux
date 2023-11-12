@@ -112,9 +112,11 @@ void initialize_identity_maps(void *rmode)
 	unsigned long cmdline;
 	struct setup_data *sd;
 
+	ghcb_printf("i1\n");
 	/* Exclude the encryption mask from __PHYSICAL_MASK */
 	physical_mask &= ~sme_me_mask;
 
+	ghcb_printf("i2\n");
 	/* Init mapping_info with run-time function/buffer pointers. */
 	mapping_info.alloc_pgt_page = alloc_pgt_page;
 	mapping_info.context = &pgt_data;
@@ -182,6 +184,7 @@ void initialize_identity_maps(void *rmode)
 	/* Load the new page-table. */
 	write_cr3(top_level_pgt);
 
+	ghcb_printf("i2\n");
 	/*
 	 * Now that the required page table mappings are established and a
 	 * GHCB can be used, check for SNP guest/HV feature compatibility.

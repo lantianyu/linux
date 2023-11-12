@@ -475,13 +475,13 @@ void snp_check_features(void)
 	 * as part of the guest boot failure.
 	 */
 	unsupported = snp_get_unsupported_features(sev_status);
-	if (unsupported) {
-		if (ghcb_version < 2 || (!boot_ghcb && !early_setup_ghcb()))
-			sev_es_terminate(SEV_TERM_SET_GEN, GHCB_SNP_UNSUPPORTED);
-
-		sev_es_ghcb_terminate(boot_ghcb, SEV_TERM_SET_GEN,
-				      GHCB_SNP_UNSUPPORTED, unsupported);
-	}
+//	if (unsupported) {
+//		if (ghcb_version < 2 || (!boot_ghcb && !early_setup_ghcb()))
+//			sev_es_terminate(SEV_TERM_SET_GEN, GHCB_SNP_UNSUPPORTED);
+//
+//		sev_es_ghcb_terminate(boot_ghcb, SEV_TERM_SET_GEN,
+//				      GHCB_SNP_UNSUPPORTED, unsupported);
+//	}
 }
 
 /*
@@ -589,6 +589,7 @@ void sev_enable(struct boot_params *bp)
 		error("SEV-SNP supported indicated by CC blob, but not SEV status MSR.");
 
 	sme_me_mask = BIT_ULL(bitpos);
+	ghcb_printf("a4\n");
 }
 
 /*

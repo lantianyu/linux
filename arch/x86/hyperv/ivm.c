@@ -67,6 +67,7 @@ union hv_ghcb {
 /* Only used in an SNP VM with the paravisor */
 static u16 hv_ghcb_version __ro_after_init;
 
+/* Functions only used in an SNP VM with the paravisor go here. */
 static u32 processor_count;
 
 u64 hv_ghcb_hypercall(u64 control, void *input, void *output, u32 input_size)
@@ -594,7 +595,7 @@ static __init void hv_snp_get_smp_config(unsigned int early)
 	 */
 	while (num_processors < processor_count) {
 		early_per_cpu(x86_cpu_to_apicid, num_processors) = num_processors;
-		early_per_cpu(x86_bios_cpu_apicid, num_processors) = num_processors;
+		//early_per_cpu(x86_bios_cpu_apicid, num_processors) = num_processors;
 		physid_set(num_processors, phys_cpu_present_map);
 		set_cpu_possible(num_processors, true);
 		set_cpu_present(num_processors, true);

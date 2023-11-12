@@ -82,7 +82,7 @@ void cleanup_exception_handling(void)
 	 * Flush GHCB from cache and map it encrypted again when running as
 	 * SEV-ES guest.
 	 */
-	sev_es_shutdown_ghcb();
+	//sev_es_shutdown_ghcb();
 	
 	/* Set a null-idt, disabling #PF and #VC handling */
 	boot_idt_desc.size    = 0;

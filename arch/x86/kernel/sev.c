@@ -244,7 +244,7 @@ static void do_exc_hv(struct pt_regs *regs)
 			/* Exception vectors */
 			WARN(1, "exception shouldn't happen\n");
 		} else if (pending_events.vector == FIRST_EXTERNAL_VECTOR) {
-			sysvec_irq_move_cleanup(regs);
+			//sysvec_irq_move_cleanup(regs);
 		} else if (pending_events.vector == IA32_SYSCALL_VECTOR) {
 			WARN(1, "syscall shouldn't happen\n");
 		} else if (pending_events.vector >= FIRST_SYSTEM_VECTOR) {
@@ -407,7 +407,7 @@ void __init sev_snp_init_hv_handling(void)
 
 	__sev_put_ghcb(&state);
 
-	apic_set_eoi_write(hv_doorbell_apic_eoi_write);
+	//apic_set_eoi_write(hv_doorbell_apic_eoi_write);
 
 	local_irq_restore(flags);
 
