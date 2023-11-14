@@ -341,9 +341,10 @@ int hv_snp_boot_ap(u32 cpu, unsigned long start_ip)
 	 */
 	vmsa->vmpl = 0;
 	vmsa->sev_features = sev_status >> 2;
-
+	pr_info("boot up ap\n");
+	
 	ret = snp_set_vmsa(vmsa, true);
-	if (!ret) {
+	if (ret) {
 		pr_err("RMPADJUST(%llx) failed: %llx\n", (u64)vmsa, ret);
 		free_page((u64)vmsa);
 		return ret;
@@ -524,12 +525,38 @@ static bool hv_vtom_set_host_visibility(unsigned long kbuffer, int pagecount, bo
 	bool result = true;
 	int i, pfn;
 
+	struct vm_struct *area;
+	unsigned long temp_vaddr, temp_pfn;
+	struct page *page;
+
+	area = get_vm_area(PAGE_SIZE * (PTRS_PER_PMD + 1), 0);
+	if (!area) {
+		printk("MHKdebug: get_vm_area failed pagecount %d enc %d\n", pagecount, enc);
+		dump_stack();
+		return false;
+	}
+	temp_vaddr = ALIGN((unsigned long)(area->addr + PAGE_SIZE), PMD_SIZE);
+
+	pr_info("MHKdebug #0: kbuffer %016lx area addr %016lx temp_vaddr %016lx pagecount %d enc %d\n", kbuffer, (unsigned long)(area->addr), temp_vaddr, pagecount, enc);
+
 	pfn_array = kmalloc(HV_HYP_PAGE_SIZE, GFP_KERNEL);
 	if (!pfn_array)
 		return false;
 
 	for (i = 0, pfn = 0; i < pagecount; i++) {
-		pfn_array[pfn] = virt_to_hvpfn((void *)kbuffer + i * HV_HYP_PAGE_SIZE);
+		/*
+		 * Use slow_virt_to_phys() because the PRESENT bit has been
+		 * temporarily cleared in the PTEs.  slow_virt_to_phys() works
+		 * without the PRESENT bit while virt_to_hvpfn() or similar
+		 * does not.
+		 */
+
+		temp_pfn = slow_virt_to_phys((void *)kbuffer + i * HV_HYP_PAGE_SIZE) >> HV_HYP_PAGE_SHIFT;
+		page = pfn_to_page(temp_pfn);
+		ret = vmap_pages_range(temp_vaddr, temp_vaddr + PAGE_SIZE, PAGE_KERNEL, &page, PAGE_SHIFT);
+		pfn_array[pfn] = virt_to_hvpfn((void *)temp_vaddr);
+
+/*		pfn_array[pfn] = slow_virt_to_phys((void *)kbuffer + i * HV_HYP_PAGE_SIZE) >> HV_HYP_PAGE_SHIFT; */
 		pfn++;
 
 		if (pfn == HV_MAX_MODIFY_GPA_REP_COUNT || i == pagecount - 1) {
@@ -537,20 +564,18 @@ static bool hv_vtom_set_host_visibility(unsigned long kbuffer, int pagecount, bo
 						     visibility);
 			if (ret) {
 				result = false;
+				printk("MHKdebug: mark_gpa_visibility failed\n");
 				goto err_free_pfn_array;
 			}
 			pfn = 0;
 		}
+		vunmap_range(temp_vaddr, temp_vaddr + PAGE_SIZE);
 	}
 
- err_free_pfn_array:
+err_free_pfn_array:
+	free_vm_area(area);
 	kfree(pfn_array);
 	return result;
-}
-
-static bool hv_vtom_tlb_flush_required(bool private)
-{
-	return true;
 }
 
 static bool hv_vtom_cache_flush_required(void)
@@ -698,7 +723,6 @@ void __init hv_vtom_init(void)
 
 	x86_platform.hyper.is_private_mmio = hv_is_private_mmio;
 	x86_platform.guest.enc_cache_flush_required = hv_vtom_cache_flush_required;
-	x86_platform.guest.enc_tlb_flush_required = hv_vtom_tlb_flush_required;
 	x86_platform.guest.enc_status_change_finish = hv_vtom_set_host_visibility;
 
 	/* Set WB as the default cache mode. */

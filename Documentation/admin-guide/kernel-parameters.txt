@@ -68,7 +68,7 @@
 
 			Some values produce so much output that the system is
 			unusable.  The "log_buf_len" parameter may be useful
-			if you need to capture more output.
+fb/arch/x86/kernel/sev-shared.c			if you need to capture more output.
 
 	acpi_enforce_resources=	[ACPI]
 			{ strict | lax | no }

@@ -998,7 +998,7 @@ void __init snp_prep_memory(unsigned long paddr, unsigned int sz, enum psc_op op
 }
 
 static unsigned long __set_pages_state(struct snp_psc_desc *data, unsigned long vaddr,
-				       unsigned long vaddr_end, int op)
+				       unsigned long vaddr_end, int op, unsigned long temp_vaddr)
 {
 	struct ghcb_state state;
 	bool use_large_entry;
@@ -1019,7 +1019,13 @@ static unsigned long __set_pages_state(struct snp_psc_desc *data, unsigned long 
 		hdr->end_entry = i;
 
 		if (is_vmalloc_addr((void *)vaddr)) {
-			pfn = vmalloc_to_pfn((void *)vaddr);
+			/*
+			 * Use slow_virt_to_phys() because the PRESENT bit has been
+			 * temporarily cleared in the PTEs.  slow_virt_to_phys() works
+			 * without the PRESENT bit while vmalloc_to_pfn() or similar
+			 * does not.
+			 */
+			pfn = slow_virt_to_phys((void *)vaddr) >> PAGE_SHIFT;
 			use_large_entry = false;
 		} else {
 			pfn = __pa(vaddr) >> PAGE_SHIFT;
@@ -1044,7 +1050,7 @@ static unsigned long __set_pages_state(struct snp_psc_desc *data, unsigned long 
 
 	/* Page validation must be rescinded before changing to shared */
 	if (op == SNP_PAGE_STATE_SHARED)
-		pvalidate_pages(data);
+		pvalidate_pages(data, temp_vaddr);
 
 	local_irq_save(flags);
 
@@ -1064,12 +1070,13 @@ static unsigned long __set_pages_state(struct snp_psc_desc *data, unsigned long 
 
 	/* Page validation must be performed after changing to private */
 	if (op == SNP_PAGE_STATE_PRIVATE)
-		pvalidate_pages(data);
+		pvalidate_pages(data, temp_vaddr);
 
 	return vaddr;
 }
 
-static void set_pages_state(unsigned long vaddr, unsigned long npages, int op)
+static void set_pages_state(unsigned long vaddr, unsigned long npages,
+				int op, unsigned long temp_vaddr)
 {
 	struct snp_psc_desc desc;
 	unsigned long vaddr_end;
@@ -1082,23 +1089,24 @@ static void set_pages_state(unsigned long vaddr, unsigned long npages, int op)
 	vaddr_end = vaddr + (npages << PAGE_SHIFT);
 
 	while (vaddr < vaddr_end)
-		vaddr = __set_pages_state(&desc, vaddr, vaddr_end, op);
+		vaddr = __set_pages_state(&desc, vaddr, vaddr_end,
+						op, temp_vaddr);
 }
 
-void snp_set_memory_shared(unsigned long vaddr, unsigned long npages)
+void snp_set_memory(unsigned long vaddr, unsigned long npages, bool enc)
 {
-	if (!cc_platform_has(CC_ATTR_GUEST_SEV_SNP))
-		return;
+	struct vm_struct *area;
+	unsigned long temp_vaddr;
+	enum psc_op op;
 
-	set_pages_state(vaddr, npages, SNP_PAGE_STATE_SHARED);
-}
+	area = get_vm_area(PAGE_SIZE * (PTRS_PER_PMD + 1), 0);
+	temp_vaddr = ALIGN((unsigned long)(area->addr + PAGE_SIZE), PMD_SIZE);
+	op = enc ? SNP_PAGE_STATE_PRIVATE : SNP_PAGE_STATE_SHARED;
 
-void snp_set_memory_private(unsigned long vaddr, unsigned long npages)
-{
-	if (!cc_platform_has(CC_ATTR_GUEST_SEV_SNP))
-		return;
-
-	set_pages_state(vaddr, npages, SNP_PAGE_STATE_PRIVATE);
+	pr_info("MHKdebug: snp_set_memory vaddr %016lx temp_vaddr %016lx npages %ld op %d\n",
+			vaddr, temp_vaddr, npages, op);
+	set_pages_state(vaddr, npages, op, temp_vaddr);
+	free_vm_area(area);
 }
 
 void snp_accept_memory(phys_addr_t start, phys_addr_t end)
@@ -1111,7 +1119,7 @@ void snp_accept_memory(phys_addr_t start, phys_addr_t end)
 	vaddr = (unsigned long)__va(start);
 	npages = (end - start) >> PAGE_SHIFT;
 
-	set_pages_state(vaddr, npages, SNP_PAGE_STATE_PRIVATE);
+	set_pages_state(vaddr, npages, SNP_PAGE_STATE_PRIVATE, 0);
 }
 
 static int snp_set_vmsa(void *va, bool vmsa)

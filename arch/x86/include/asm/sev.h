@@ -204,8 +204,7 @@ void __init early_snp_set_memory_private(unsigned long vaddr, unsigned long padd
 void __init early_snp_set_memory_shared(unsigned long vaddr, unsigned long paddr,
 					unsigned long npages);
 void __init snp_prep_memory(unsigned long paddr, unsigned int sz, enum psc_op op);
-void snp_set_memory_shared(unsigned long vaddr, unsigned long npages);
-void snp_set_memory_private(unsigned long vaddr, unsigned long npages);
+void snp_set_memory(unsigned long vaddr, unsigned long npages, bool enc);
 void snp_set_wakeup_secondary_cpu(void);
 bool snp_init(struct boot_params *bp);
 void __init __noreturn snp_abort(void);
@@ -228,8 +227,7 @@ early_snp_set_memory_private(unsigned long vaddr, unsigned long paddr, unsigned 
 static inline void __init
 early_snp_set_memory_shared(unsigned long vaddr, unsigned long paddr, unsigned long npages) { }
 static inline void __init snp_prep_memory(unsigned long paddr, unsigned int sz, enum psc_op op) { }
-static inline void snp_set_memory_shared(unsigned long vaddr, unsigned long npages) { }
-static inline void snp_set_memory_private(unsigned long vaddr, unsigned long npages) { }
+static inline void snp_set_memory(unsigned long vaddr, unsigned long npages, bool enc) { }
 static inline void snp_set_wakeup_secondary_cpu(void) { }
 static inline bool snp_init(struct boot_params *bp) { return false; }
 static inline void snp_abort(void) { }

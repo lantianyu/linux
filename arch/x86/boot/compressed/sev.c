@@ -298,7 +298,7 @@ static phys_addr_t __snp_accept_memory(struct snp_psc_desc *desc,
 	if (vmgexit_psc(boot_ghcb, desc))
 		sev_es_terminate(SEV_TERM_SET_LINUX, GHCB_TERM_PSC);
 
-	pvalidate_pages(desc);
+	pvalidate_pages(desc, 0);
 
 	return pa;
 }
