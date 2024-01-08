@@ -205,13 +205,12 @@ static u8 sev_hv_pending(void)
 #define sev_hv_pending_nmi	\
 		sev_snp_current_doorbell_page()->pending_events.nmi
 
-static void hv_doorbell_apic_eoi_write(u32 reg, u32 val)
+static void hv_doorbell_apic_eoi_write(void)
 {
 	if (xchg(&sev_snp_current_doorbell_page()->no_eoi_required, 0) & 0x1)
 		return;
 
-	BUG_ON(reg != APIC_EOI);
-	apic->write(reg, val);
+	apic->write(APIC_EOI, APIC_EOI_ACK);
 }
 
 static void do_exc_hv(struct pt_regs *regs)
@@ -407,8 +406,7 @@ void __init sev_snp_init_hv_handling(void)
 
 	__sev_put_ghcb(&state);
 
-	//apic_set_eoi_write(hv_doorbell_apic_eoi_write);
-
+	apic_update_callback(eoi, hv_doorbell_apic_eoi_write);
 	local_irq_restore(flags);
 
 	construct_sysvec_table();
@@ -1503,7 +1501,10 @@ void setup_ghcb(void)
 
 int vmgexit_hv_doorbell_page(struct ghcb *ghcb, u64 op, u64 pa)
 {
-	return sev_es_ghcb_hv_call(ghcb, NULL, SVM_VMGEXIT_HV_DOORBELL_PAGE, op, pa);
+	//pr_info("ghcb %p.\n", ghcb);
+	struct es_em_ctxt ctxt;
+
+	return sev_es_ghcb_hv_call(ghcb, &ctxt, SVM_VMGEXIT_HV_DOORBELL_PAGE, op, pa);
 }
 
 #ifdef CONFIG_HOTPLUG_CPU
@@ -1604,6 +1605,7 @@ static void __init init_ghcb(int cpu)
 		panic("Can't map #HV doorbell pages unencrypted");
 
 	memset(&snp_data->hv_doorbell_page, 0, sizeof(snp_data->hv_doorbell_page));
+	pr_info("set up snp page.\n");
 
 	per_cpu(snp_runtime_data, cpu) = snp_data;
 

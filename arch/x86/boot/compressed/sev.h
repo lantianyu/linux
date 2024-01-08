@@ -8,9 +8,11 @@
 #ifndef BOOT_COMPRESSED_SEV_H
 #define BOOT_COMPRESSED_SEV_H
 
+bool sev_snp_enabled(void);
+
 #ifdef CONFIG_AMD_MEM_ENCRYPT
 
-bool sev_snp_enabled(void);
+//bool sev_snp_enabled(void);
 void snp_accept_memory(phys_addr_t start, phys_addr_t end);
 
 #else

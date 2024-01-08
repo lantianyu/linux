@@ -316,6 +316,7 @@ static int set_clr_page_flags(struct x86_mapping_info *info,
 	pte = pte_clear_flags(pte, clr);
 	set_pte(ptep, pte);
 
+
 	/*
 	 * If the encryption attribute is being set, then change the page state to
 	 * private in the RMP entry. The page state change must be done after the PTE

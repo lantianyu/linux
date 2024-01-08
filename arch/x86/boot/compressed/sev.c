@@ -199,7 +199,7 @@ static bool sev_snp_runtime_check(void)
 	return false;
 }
 
-static inline bool sev_snp_enabled(void)
+bool sev_snp_enabled(void)
 {
 	return sev_status & MSR_AMD64_SEV_SNP_ENABLED;
 }
@@ -322,22 +322,18 @@ void sev_es_shutdown_ghcb(void)
 	if (!boot_ghcb)
 		return;
 
-	ghcb_printf("s1\n");
-//	if (!sev_es_check_cpu_features())
-//		error("SEV-ES CPU Features missing.");
+	if (!sev_es_check_cpu_features())
+		error("SEV-ES CPU Features missing.");
 
 	/*
 	 * GHCB Page must be flushed from the cache and mapped encrypted again.
 	 * Otherwise the running kernel will see strange cache effects when
 	 * trying to use that page.
 	 */
-	ghcb_printf("s1\n");
-//	if (set_page_encrypted((unsigned long)&boot_ghcb_page)) {
-//		ghcb_printf("s2\n");
-//		error("Can't map GHCB page encrypted");
-//	}
+	if (set_page_encrypted((unsigned long)&boot_ghcb_page)) {
+		error("Can't map GHCB page encrypted");
+	}
 
-	ghcb_printf("s2\n");
 	/*
 	 * GHCB page is mapped encrypted again and flushed from the cache.
 	 * Mark it non-present now to catch bugs when #VC exceptions trigger
