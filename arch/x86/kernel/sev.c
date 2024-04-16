@@ -205,13 +205,12 @@ static u8 sev_hv_pending(void)
 #define sev_hv_pending_nmi	\
 		sev_snp_current_doorbell_page()->pending_events.nmi
 
-static void hv_doorbell_apic_eoi_write(u32 reg, u32 val)
+static void hv_doorbell_apic_eoi_write(void)
 {
 	if (xchg(&sev_snp_current_doorbell_page()->no_eoi_required, 0) & 0x1)
 		return;
 
-	BUG_ON(reg != APIC_EOI);
-	apic->write(reg, val);
+	apic->write(APIC_EOI, APIC_EOI_ACK);
 }
 
 static void do_exc_hv(struct pt_regs *regs)
@@ -244,7 +243,7 @@ static void do_exc_hv(struct pt_regs *regs)
 			/* Exception vectors */
 			WARN(1, "exception shouldn't happen\n");
 		} else if (pending_events.vector == FIRST_EXTERNAL_VECTOR) {
-			sysvec_irq_move_cleanup(regs);
+			//sysvec_irq_move_cleanup(regs);
 		} else if (pending_events.vector == IA32_SYSCALL_VECTOR) {
 			WARN(1, "syscall shouldn't happen\n");
 		} else if (pending_events.vector >= FIRST_SYSTEM_VECTOR) {
@@ -402,13 +401,9 @@ void __init sev_snp_init_hv_handling(void)
 	local_irq_save(flags);
 
 	ghcb = __sev_get_ghcb(&state);
-
-	sev_snp_setup_hv_doorbell_page(ghcb);
-
 	__sev_put_ghcb(&state);
 
-	apic_set_eoi_write(hv_doorbell_apic_eoi_write);
-
+	apic_update_callback(eoi, hv_doorbell_apic_eoi_write);
 	local_irq_restore(flags);
 
 	construct_sysvec_table();
@@ -1019,7 +1014,13 @@ static unsigned long __set_pages_state(struct snp_psc_desc *data, unsigned long 
 		hdr->end_entry = i;
 
 		if (is_vmalloc_addr((void *)vaddr)) {
-			pfn = vmalloc_to_pfn((void *)vaddr);
+			/*
+			 * Use slow_virt_to_phys() because the PRESENT bit has been
+			 * temporarily cleared in the PTEs.  slow_virt_to_phys() works
+			 * without the PRESENT bit while vmalloc_to_pfn() or similar
+			 * does not.
+			 */
+			pfn = slow_virt_to_phys((void *)vaddr) >> PAGE_SHIFT;
 			use_large_entry = false;
 		} else {
 			pfn = __pa(vaddr) >> PAGE_SHIFT;
@@ -1044,7 +1045,7 @@ static unsigned long __set_pages_state(struct snp_psc_desc *data, unsigned long 
 
 	/* Page validation must be rescinded before changing to shared */
 	if (op == SNP_PAGE_STATE_SHARED)
-		pvalidate_pages(data);
+		pvalidate_pages(data, 0);
 
 	local_irq_save(flags);
 
@@ -1064,7 +1065,7 @@ static unsigned long __set_pages_state(struct snp_psc_desc *data, unsigned long 
 
 	/* Page validation must be performed after changing to private */
 	if (op == SNP_PAGE_STATE_PRIVATE)
-		pvalidate_pages(data);
+		pvalidate_pages(data, 0);
 
 	return vaddr;
 }
@@ -1410,6 +1411,22 @@ static enum es_result vc_handle_msr(struct ghcb *ghcb, struct es_em_ctxt *ctxt)
 	/* Is it a WRMSR? */
 	exit_info_1 = (ctxt->insn.opcode.bytes[1] == 0x30) ? 1 : 0;
 
+	if (cc_platform_has(CC_ATTR_GUEST_SEV_SNP)) {
+		/*
+		 * Handle security-sensitive MSRs here.
+		 * TODO: incomplete list.
+		 */
+		switch (regs->cx) {
+		case MSR_AMD64_OSVW_ID_LENGTH:
+		case MSR_K8_TSEG_ADDR:
+			if (!exit_info_1) {
+				regs->dx = 0;
+				regs->ax = 0;
+			}
+			return ES_OK;
+		}
+	}
+
 	ghcb_set_rcx(ghcb, regs->cx);
 	if (exit_info_1) {
 		ghcb_set_rax(ghcb, regs->ax);
@@ -1479,7 +1496,10 @@ void setup_ghcb(void)
 
 int vmgexit_hv_doorbell_page(struct ghcb *ghcb, u64 op, u64 pa)
 {
-	return sev_es_ghcb_hv_call(ghcb, NULL, SVM_VMGEXIT_HV_DOORBELL_PAGE, op, pa);
+	struct es_em_ctxt ctxt;
+
+	sev_es_ghcb_hv_call(ghcb, &ctxt, SVM_VMGEXIT_HV_DOORBELL_PAGE, op, pa);
+	return 0;
 }
 
 #ifdef CONFIG_HOTPLUG_CPU

@@ -48,8 +48,6 @@ extern void *hv_hypercall_pg;
 
 extern u64 hv_current_partition_id;
 
-extern bool hv_isolation_type_en_snp(void);
-
 extern union hv_ghcb * __percpu *hv_ghcb_pg;
 
 bool hv_isolation_type_snp(void);

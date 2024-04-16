@@ -111,8 +111,8 @@ static void __init __sme_early_enc_dec(resource_size_t paddr,
 		 * Create mappings for the current and desired format of
 		 * the memory. Use a write-protected mapping for the source.
 		 */
-		src = enc ? early_memremap_decrypted_wp(paddr, len) :
-			    early_memremap_encrypted_wp(paddr, len);
+		src = enc ? early_memremap_decrypted(paddr, len) :
+			    early_memremap_encrypted(paddr, len);
 
 		dst = enc ? early_memremap_encrypted(paddr, len) :
 			    early_memremap_decrypted(paddr, len);
@@ -278,11 +278,6 @@ static unsigned long pg_level_to_pfn(int level, pte_t *kpte, pgprot_t *ret_prot)
 	return pfn;
 }
 
-static bool amd_enc_tlb_flush_required(bool enc)
-{
-	return true;
-}
-
 static bool amd_enc_cache_flush_required(void)
 {
 	return !cpu_feature_enabled(X86_FEATURE_SME_COHERENT);
@@ -316,18 +311,6 @@ static void enc_dec_hypercall(unsigned long vaddr, unsigned long size, bool enc)
 		vaddr = (vaddr & pmask) + psize;
 	}
 #endif
-}
-
-static bool amd_enc_status_change_prepare(unsigned long vaddr, int npages, bool enc)
-{
-	/*
-	 * To maintain the security guarantees of SEV-SNP guests, make sure
-	 * to invalidate the memory before encryption attribute is cleared.
-	 */
-	if (cc_platform_has(CC_ATTR_GUEST_SEV_SNP) && !enc)
-		snp_set_memory_shared(vaddr, npages);
-
-	return true;
 }
 
 /* Return true unconditionally: return value doesn't matter for the SEV side */
@@ -498,9 +481,7 @@ void __init sme_early_init(void)
 	/* Update the protection map with memory encryption mask */
 	add_encrypt_protection_map();
 
-	x86_platform.guest.enc_status_change_prepare = amd_enc_status_change_prepare;
 	x86_platform.guest.enc_status_change_finish  = amd_enc_status_change_finish;
-	x86_platform.guest.enc_tlb_flush_required    = amd_enc_tlb_flush_required;
 	x86_platform.guest.enc_cache_flush_required  = amd_enc_cache_flush_required;
 
 	/*

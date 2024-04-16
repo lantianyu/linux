@@ -214,7 +214,7 @@ static enum es_result verify_exception_info(struct ghcb *ghcb, struct es_em_ctxt
 
 			if (info & SVM_EVTINJ_VALID_ERR)
 				ctxt->fi.error_code = info >> 32;
-
+			
 			return ES_EXCEPTION;
 		}
 	}
@@ -441,6 +441,8 @@ static int snp_cpuid_postprocess(struct ghcb *ghcb, struct es_em_ctxt *ctxt,
 	switch (leaf->fn) {
 	case 0x1:
 		snp_cpuid_hv(ghcb, ctxt, &leaf_hv);
+		leaf->ecx |= BIT(31); /* Inside a VM */
+		leaf->ecx |= BIT(21); /* Inside a VM */
 
 		/* initial APIC ID */
 		leaf->ebx = (leaf_hv.ebx & GENMASK(31, 24)) | (leaf->ebx & GENMASK(23, 0));
@@ -557,9 +559,15 @@ static int snp_cpuid(struct ghcb *ghcb, struct es_em_ctxt *ctxt, struct cpuid_le
 
 		/* Skip post-processing for out-of-range zero leafs. */
 		if (!(leaf->fn <= cpuid_std_range_max ||
-		      (leaf->fn >= 0x40000000 && leaf->fn <= cpuid_hyp_range_max) ||
-		      (leaf->fn >= 0x80000000 && leaf->fn <= cpuid_ext_range_max)))
-			return 0;
+		      (leaf->fn > 0x40000000 && leaf->fn <= cpuid_hyp_range_max) ||
+		      (leaf->fn > 0x80000000 && leaf->fn <= cpuid_ext_range_max))) {
+
+			if (leaf->fn < 0x400000ff && leaf->fn >= 0x40000000) {
+				return -EOPNOTSUPP;
+			} else {
+				return 0;
+			}
+		}
 	}
 
 	return snp_cpuid_postprocess(ghcb, ctxt, leaf);
@@ -1071,35 +1079,66 @@ static void __init setup_cpuid_table(const struct cc_blob_sev_info *cc_info)
 	}
 }
 
-static void pvalidate_pages(struct snp_psc_desc *desc)
+static int pvalidate_pfn(unsigned long vaddr, unsigned int size,
+			 unsigned long pfn, bool validate, int *rc2)
+{
+#ifndef __BOOT_COMPRESSED
+	int rc;
+	struct page *page = pfn_to_page(pfn);
+
+	*rc2 = vmap_pages_range(vaddr, vaddr + PAGE_SIZE,
+			PAGE_KERNEL, &page, PAGE_SHIFT);
+	rc = pvalidate(vaddr, size, validate);
+	vunmap_range(vaddr, vaddr + PAGE_SIZE);
+
+	return rc;
+#else
+	return 0;
+#endif
+}
+
+static void pvalidate_pages(struct snp_psc_desc *desc, unsigned long vaddr)
 {
 	struct psc_entry *e;
-	unsigned long vaddr;
+	unsigned long pfn;
 	unsigned int size;
 	unsigned int i;
 	bool validate;
-	int rc;
+	int rc, rc2 = 0;
 
 	for (i = 0; i <= desc->hdr.end_entry; i++) {
 		e = &desc->entries[i];
 
-		vaddr = (unsigned long)pfn_to_kaddr(e->gfn);
-		size = e->pagesize ? RMP_PG_SIZE_2M : RMP_PG_SIZE_4K;
+		size = e->pagesize;
 		validate = e->operation == SNP_PAGE_STATE_PRIVATE;
+		pfn = e->gfn;
 
-		rc = pvalidate(vaddr, size, validate);
+		if (vaddr) {
+			rc = pvalidate_pfn(vaddr, size, pfn, validate, &rc2);
+		} else {
+			vaddr = (unsigned long)pfn_to_kaddr(pfn);
+			rc = pvalidate(vaddr, size, validate);
+		}
+
 		if (rc == PVALIDATE_FAIL_SIZEMISMATCH && size == RMP_PG_SIZE_2M) {
-			unsigned long vaddr_end = vaddr + PMD_SIZE;
+			unsigned long last_pfn = pfn + PTRS_PER_PMD - 1;
 
-			for (; vaddr < vaddr_end; vaddr += PAGE_SIZE) {
-				rc = pvalidate(vaddr, RMP_PG_SIZE_4K, validate);
+			for (; pfn <= last_pfn; pfn++) {
+				if (vaddr) {
+					rc = pvalidate_pfn(vaddr, RMP_PG_SIZE_4K,
+							   pfn, validate, &rc2);
+				} else {
+					vaddr = (unsigned long)pfn_to_kaddr(pfn);
+					rc = pvalidate(vaddr, RMP_PG_SIZE_4K, validate);
+				}
 				if (rc)
 					break;
 			}
 		}
 
 		if (rc) {
-			WARN(1, "Failed to validate address 0x%lx ret %d", vaddr, rc);
+			WARN(1, "Failed to validate address 0x%lx ret %d ret2 %d",
+				vaddr, rc, rc2);
 			sev_es_terminate(SEV_TERM_SET_LINUX, GHCB_TERM_PVALIDATE);
 		}
 	}
