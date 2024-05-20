@@ -213,7 +213,6 @@ static void hv_doorbell_apic_eoi_write(u32 reg, u32 val)
 static void do_exc_hv(struct pt_regs *regs)
 {
 	union hv_pending_events pending_events;
-	u8 vector;
 
 	this_cpu_read(snp_runtime_data)->hv_handling_events = true;
 
@@ -232,8 +231,10 @@ static void do_exc_hv(struct pt_regs *regs)
 			exc_machine_check(regs);
 #endif
 
-		if (!pending_events.vector)
-			return;
+		if (!pending_events.vector) {
+			asm volatile("sti" : : : "memory");
+			break;
+		}
 
 		if (pending_events.vector < FIRST_EXTERNAL_VECTOR) {
 			/* Exception vectors */
