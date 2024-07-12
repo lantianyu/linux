@@ -2383,7 +2383,8 @@ bool __head snp_init(struct boot_params *bp)
 	 * The CC blob will be used later to access the secrets page. Cache
 	 * it here like the boot kernel does.
 	 */
-	bp->cc_blob_address = (u32)(unsigned long)cc_info;
+	if (!bp->cc_blob_address)
+		bp->cc_blob_address = (u32)(unsigned long)cc_info;
 
 	return true;
 }
