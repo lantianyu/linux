@@ -29,6 +29,7 @@
 #include <asm/hypervisor.h>
 #include <asm/mshyperv.h>
 #include <asm/apic.h>
+#include <linux/delay.h>
 
 #include <asm/trace/hyperv.h>
 
@@ -169,7 +170,7 @@ static bool __send_ipi_mask(const struct cpumask *mask, int vector,
 	struct hv_send_ipi ipi_arg;
 	u64 status;
 	unsigned int weight;
-	int retry = 5;
+	int retry = 10;
 
 	trace_hyperv_send_ipi_mask(mask, vector);
 
@@ -227,6 +228,12 @@ static bool __send_ipi_mask(const struct cpumask *mask, int vector,
 		status = hv_do_fast_hypercall16(HVCALL_SEND_IPI, ipi_arg.vector,
 						ipi_arg.cpu_mask);
 	} while (status == HV_STATUS_TIME_OUT && retry--);
+
+	if (!retry)
+		pr_info("retry = 0.\n");
+
+	if(status)
+		pr_info("--------------hv result %llx.\n", status);
 
 	return hv_result_success(status);
 

@@ -14,6 +14,17 @@
 
 static DEFINE_PER_CPU(int, printk_context);
 
+
+static bool sev_printf = false;
+
+int __init enable_sev_printf(char *str)
+{
+	sev_printf = true;
+	return 0;
+}
+
+__setup("sev_printf", enable_sev_printf);
+
 /* Can be preempted by NMI. */
 void __printk_safe_enter(void)
 {
@@ -26,7 +37,6 @@ void __printk_safe_exit(void)
 	this_cpu_dec(printk_context);
 }
 
-#if 0
 static DEFINE_SPINLOCK(printk_lock);
 
 static int hv_sev_printf2(const char *fmt)
@@ -125,11 +135,10 @@ void hv_sev_debugbreak(u32 val)
 	asm volatile ("wrmsr" :: "c" (0xc0010130), "a" (low), "d" (high));
 }
 EXPORT_SYMBOL_GPL(hv_sev_debugbreak);
-#endif
 
 asmlinkage int vprintk(const char *fmt, va_list args)
 {
-	//va_list args2;
+	va_list args2;
 
 #ifdef CONFIG_KGDB_KDB
 	/* Allow to pass printk() to kdb but avoid a recursion. */
@@ -137,13 +146,11 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 		return vkdb_printf(KDB_MSGSRC_PRINTK, fmt, args);
 #endif
 
-#if 0
-	//if (sev_snp_active())
-
-	va_copy(args2, args);
-	hv_sev_printf(fmt, args2);
-	va_end(args2);
-#endif
+	if (sev_printf) {
+		va_copy(args2, args);
+		hv_sev_printf(fmt, args2);
+		va_end(args2);
+	}
 
 	/*
 	 * Use the main logbuf even in NMI. But avoid calling console
