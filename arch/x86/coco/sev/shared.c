@@ -589,6 +589,8 @@ static int snp_cpuid_postprocess(struct ghcb *ghcb, struct es_em_ctxt *ctxt,
 		leaf->ebx = (leaf_hv.ebx & GENMASK(31, 24)) | (leaf->ebx & GENMASK(23, 0));
 		/* APIC enabled bit */
 		leaf->edx = (leaf_hv.edx & BIT(9)) | (leaf->edx & ~BIT(9));
+		leaf->ecx |= BIT(31); /* Inside a VM */
+		leaf->ecx |= BIT(21); /* x2apic bit */
 
 		/* OSXSAVE enabled bit */
 		if (native_read_cr4() & X86_CR4_OSXSAVE)
