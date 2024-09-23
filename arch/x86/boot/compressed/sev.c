@@ -389,26 +389,6 @@ static int sev_check_cpu_support(void)
 	struct msr m;
 	bool snp;
 
-	/*
-	 * bp->cc_blob_address should only be set by boot/compressed
-	 * kernel and hypervisor with direct boot mode. Initialize it
-	 * to 0 after checking in order to ensure that uninitialized
-	 * values from buggy bootloaders aren't propagated.
-	 */
-	if (bp) {
-		cc_info = (struct cc_blob_sev_info *)(unsigned long)
-			bp->cc_blob_address;
-
-		if (cc_info->magic != CC_BLOB_SEV_HDR_MAGIC)
-			bp->cc_blob_address = 0;
-	}
-
-	/*
-	 * Setup/preliminary detection of SNP. This will be sanity-checked
-	 * against CPUID/MSR values later.
-	 */
-	snp = snp_init(bp);
-
 	/* Check for the SME/SEV support leaf */
 	eax = 0x80000000;
 	ecx = 0;
@@ -436,17 +416,24 @@ static int sev_check_cpu_support(void)
 
 void sev_enable(struct boot_params *bp)
 {
+	struct cc_blob_sev_info *cc_info;	
 	struct msr m;
 	int bitpos;
 	bool snp;
 
 	/*
-	 * bp->cc_blob_address should only be set by boot/compressed kernel.
-	 * Initialize it to 0 to ensure that uninitialized values from
-	 * buggy bootloaders aren't propagated.
+	 * bp->cc_blob_address should only be set by boot/compressed
+	 * kernel and hypervisor with direct boot mode. Initialize it
+	 * to 0 after checking in order to ensure that uninitialized
+	 * values from buggy bootloaders aren't propagated.
 	 */
-	if (bp)
-		bp->cc_blob_address = 0;
+	if (bp) {
+		cc_info = (struct cc_blob_sev_info *)(unsigned long)
+			bp->cc_blob_address;
+
+		if (cc_info->magic != CC_BLOB_SEV_HDR_MAGIC)
+			bp->cc_blob_address = 0;
+	}
 
 	/*
 	 * Do an initial SEV capability check before snp_init() which

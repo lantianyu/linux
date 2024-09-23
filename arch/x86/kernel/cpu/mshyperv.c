@@ -544,7 +544,7 @@ static void __init ms_hyperv_init_platform(void)
 		if (IS_ENABLED(CONFIG_AMD_MEM_ENCRYPT)) {
 			if (hv_get_isolation_type() != HV_ISOLATION_TYPE_NONE
 			    && !cc_platform_has(CC_ATTR_GUEST_SEV_SNP))
-				cc_set_vendor(CC_VENDOR_HYPERV);
+				cc_vendor = CC_VENDOR_HYPERV;
 		}
 	}
 
