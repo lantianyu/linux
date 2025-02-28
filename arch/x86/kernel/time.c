@@ -75,12 +75,19 @@ static __init void x86_late_time_init(void)
 	/* Setup the legacy timers */
 	x86_init.timers.timer_init();
 
+	pr_info("%s %d.\n", __func__, __LINE__);
+	
 	/*
 	 * After PIT/HPET timers init, set up the final interrupt mode for
 	 * delivering IRQs.
 	 */
+	pr_info("%s %d.\n", __func__, __LINE__);
+	
 	x86_init.irqs.intr_mode_init();
+	pr_info("%s %d.\n", __func__, __LINE__);
+	
 	tsc_init();
+	pr_info("%s %d.\n", __func__, __LINE__);
 
 	if (static_cpu_has(X86_FEATURE_WAITPKG))
 		use_tpause_delay();

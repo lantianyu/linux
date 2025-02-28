@@ -7,11 +7,15 @@
  * Author: Kishon Vijay Abraham I <kvijayab@amd.com>
  */
 
+#include <linux/cpuhotplug.h>
 #include <linux/cpumask.h>
 #include <linux/cc_platform.h>
 #include <linux/percpu-defs.h>
+#include <linux/export.h>
 #include <linux/align.h>
 #include <linux/sizes.h>
+#include <linux/memory.h>
+#include <linux/slab.h>
 
 #include <asm/apic.h>
 #include <asm/cpuid.h>
@@ -170,6 +174,8 @@ static void x2apic_savic_write(u32 reg, u32 data)
 	case APIC_SEOI:
 	case APIC_IER:
 	case APIC_EILVTn(0) ... APIC_EILVTn(3):
+		if (reg == APIC_EOI)
+			printk_once("set eoi\n");
 		set_reg(backing_page, reg, data);
 		break;
 	/* Self IPIs are accelerated by hardware, use wrmsr */
@@ -343,7 +349,7 @@ static void x2apic_savic_send_IPI_self(int vector)
 	__send_IPI_shorthand(vector, APIC_DEST_SELF);
 }
 
-static void x2apic_savic_update_vector(unsigned int cpu, unsigned int vector, bool set)
+void x2apic_savic_update_vector(unsigned int cpu, unsigned int vector, bool set)
 {
 	void *backing_page;
 	unsigned long *reg;
@@ -384,13 +390,17 @@ static void init_backing_page(void *backing_page)
 	val = read_msr_from_hv(APIC_LDR);
 	set_reg(backing_page, APIC_LDR, val);
 
-	/* Read APIC ID from Extended Topology Enumeration CPUID */
-	apic_id = cpuid_edx(0x0000000b);
 	hv_apic_id = read_msr_from_hv(APIC_ID);
+	/* Read APIC ID from Extended Topology Enumeration CPUID */
+	pr_info(" cpu index %d apic id %d hv_apic_id %d\n", smp_processor_id(), cpuid_edx(0x0000000b), hv_apic_id);
+	apic_id = smp_processor_id();
 	WARN_ONCE(hv_apic_id != apic_id, "Inconsistent APIC_ID values: %d (cpuid), %d (msr)",
 			apic_id, hv_apic_id);
 	set_reg(backing_page, APIC_ID, apic_id);
 }
+
+#define HYPERV_REENLIGHTENMENT_VECTOR	0xee
+#define HYPERV_STIMER0_VECTOR		0xed
 
 static void x2apic_savic_setup(void)
 {
@@ -407,6 +417,7 @@ static void x2apic_savic_setup(void)
 
 	backing_page = this_cpu_read(apic_backing_page);
 	init_backing_page(backing_page);
+
 	gpa = __pa(backing_page);
 	gfn = gpa >> PAGE_SHIFT;
 
@@ -419,6 +430,10 @@ static void x2apic_savic_setup(void)
 		snp_abort();
 	savic_wr_control_msr(gpa | MSR_AMD64_SECURE_AVIC_EN | MSR_AMD64_SECURE_AVIC_ALLOWEDNMI);
 	this_cpu_write(savic_setup_done, true);
+
+	x2apic_savic_update_vector(0, HYPERV_REENLIGHTENMENT_VECTOR, true);
+	x2apic_savic_update_vector(0, HYPERV_STIMER0_VECTOR, true);
+	x2apic_savic_update_vector(0, HYPERVISOR_CALLBACK_VECTOR, true);
 }
 
 static int x2apic_savic_probe(void)
@@ -489,3 +504,4 @@ static struct apic apic_x2apic_savic __ro_after_init = {
 };
 
 apic_driver(apic_x2apic_savic);
+

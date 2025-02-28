@@ -61,6 +61,8 @@
 #define AP_INIT_CR0_DEFAULT		0x60000010
 #define AP_INIT_MXCSR_DEFAULT		0x1f80
 
+#define MSR_AMD64_SNP_SECURE_AVIC_BIT  18
+
 static const char * const sev_status_feat_names[] = {
 	[MSR_AMD64_SEV_ENABLED_BIT]		= "SEV",
 	[MSR_AMD64_SEV_ES_ENABLED_BIT]		= "SEV-ES",
@@ -78,6 +80,7 @@ static const char * const sev_status_feat_names[] = {
 	[MSR_AMD64_SNP_IBS_VIRT_BIT]		= "IBSVirt",
 	[MSR_AMD64_SNP_VMSA_REG_PROT_BIT]	= "VMSARegProt",
 	[MSR_AMD64_SNP_SMT_PROT_BIT]		= "SMTProt",
+	[MSR_AMD64_SNP_SECURE_AVIC_BIT]		= "Secure avic"
 };
 
 /* For early boot hypervisor communication in SEV-ES enabled guests */
@@ -2383,8 +2386,8 @@ bool __head snp_init(struct boot_params *bp)
 	 * The CC blob will be used later to access the secrets page. Cache
 	 * it here like the boot kernel does.
 	 */
-	if (!bp->cc_blob_address)
-		bp->cc_blob_address = (u32)(unsigned long)cc_info;
+	//if (!bp->cc_blob_address)
+	bp->cc_blob_address = (u32)(unsigned long)cc_info;
 
 	return true;
 }

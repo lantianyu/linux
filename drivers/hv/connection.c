@@ -104,7 +104,7 @@ int vmbus_negotiate_version(struct vmbus_channel_msginfo *msginfo, u32 version)
 		msg->interrupt_page = virt_to_phys(vmbus_connection.int_page);
 		vmbus_connection.msg_conn_id = VMBUS_MESSAGE_CONNECTION_ID;
 	}
-
+	
 	/*
 	 * shared_gpa_boundary is zero in non-SNP VMs, so it's safe to always
 	 * bitwise OR it
@@ -115,7 +115,7 @@ int vmbus_negotiate_version(struct vmbus_channel_msginfo *msginfo, u32 version)
 				ms_hyperv.shared_gpa_boundary;
 
 	msg->target_vcpu = hv_cpu_number_to_vp_number(VMBUS_CONNECT_CPU);
-
+	
 	/*
 	 * Add to list before we send the request since we may
 	 * receive the response before returning from this routine
@@ -126,6 +126,8 @@ int vmbus_negotiate_version(struct vmbus_channel_msginfo *msginfo, u32 version)
 
 	spin_unlock_irqrestore(&vmbus_connection.channelmsg_lock, flags);
 
+	pr_info("%s %d\n", __func__, __LINE__);
+	
 	ret = vmbus_post_msg(msg,
 			     sizeof(struct vmbus_channel_initiate_contact),
 			     true);
@@ -173,13 +175,16 @@ int vmbus_connect(void)
 	/* Initialize the vmbus connection */
 	vmbus_connection.conn_state = CONNECTING;
 	vmbus_connection.work_queue = create_workqueue("hv_vmbus_con");
+	
 	if (!vmbus_connection.work_queue) {
 		ret = -ENOMEM;
 		goto cleanup;
 	}
 
+	
 	vmbus_connection.rescind_work_queue =
 		create_workqueue("hv_vmbus_rescind");
+	
 	if (!vmbus_connection.rescind_work_queue) {
 		ret = -ENOMEM;
 		goto cleanup;
@@ -236,7 +241,7 @@ int vmbus_connect(void)
 	ret = set_memory_decrypted((unsigned long)
 				vmbus_connection.monitor_pages[0], 1);
 	ret |= set_memory_decrypted((unsigned long)
-				vmbus_connection.monitor_pages[1], 1);
+				vmbus_connection.monitor_pages[1], 1);	
 	if (ret) {
 		/*
 		 * If set_memory_decrypted() fails, the encryption state
@@ -270,7 +275,6 @@ int vmbus_connect(void)
 	 * and work our way down until we negotiate a compatible
 	 * version.
 	 */
-
 	for (i = 0; ; i++) {
 		if (i == ARRAY_SIZE(vmbus_versions)) {
 			ret = -EDOM;
@@ -288,7 +292,7 @@ int vmbus_connect(void)
 		if (vmbus_connection.conn_state == CONNECTED)
 			break;
 	}
-
+	
 	if (hv_is_isolation_supported() && version < VERSION_WIN10_V5_2) {
 		pr_err("Invalid VMBus version %d.%d (expected >= %d.%d) from the host supporting isolation\n",
 		       version >> 16, version & 0xFFFF, VERSION_WIN10_V5_2 >> 16, VERSION_WIN10_V5_2 & 0xFFFF);

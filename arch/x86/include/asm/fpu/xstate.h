@@ -49,9 +49,14 @@
 /* Features which are dynamically enabled for a process on request */
 #define XFEATURE_MASK_USER_DYNAMIC	XFEATURE_MASK_XTILE_DATA
 
+#ifdef CONFIG_X86_USER_SHADOW_STACK
 /* All currently supported supervisor features */
 #define XFEATURE_MASK_SUPERVISOR_SUPPORTED (XFEATURE_MASK_PASID | \
 					    XFEATURE_MASK_CET_USER)
+#else
+#define XFEATURE_MASK_SUPERVISOR_SUPPORTED XFEATURE_MASK_PASID
+#endif
+
 
 /*
  * A supervisor state component may not always contain valuable information,

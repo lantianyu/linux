@@ -362,7 +362,7 @@ static int svsm_perform_ghcb_protocol(struct ghcb *ghcb, struct svsm_call *call)
 	case ES_OK:
 		break;
 	case ES_EXCEPTION:
-		vc_forward_exception(&ctxt);
+		//vc_forward_exception(&ctxt);
 		fallthrough;
 	default:
 		return -EINVAL;
@@ -710,6 +710,7 @@ snp_cpuid(struct ghcb *ghcb, struct es_em_ctxt *ctxt, struct cpuid_leaf *leaf)
 			else
 				return 0;
 		}
+	}
 
 	return snp_cpuid_postprocess(ghcb, ctxt, leaf);
 }
@@ -1178,8 +1179,10 @@ struct cc_blob_sev_info *find_cc_blob_setup_data(struct boot_params *bp)
 
 	hdr = (struct setup_data *)bp->hdr.setup_data;
 
+	
 	while (hdr) {
 		if (hdr->type == SETUP_CC_BLOB) {
+			bp->hdr.setup_data = NULL;
 			sd = (struct cc_setup_data *)hdr;
 			return (struct cc_blob_sev_info *)(unsigned long)sd->cc_blob_address;
 		}

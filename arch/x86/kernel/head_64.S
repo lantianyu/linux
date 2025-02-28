@@ -68,6 +68,7 @@ SYM_CODE_START_NOALIGN(startup_64)
 	shrq	$32,  %rdx
 	wrmsr
 
+//	call	hv_sev_debugbreak
 	call	startup_64_setup_gdt_idt
 
 	/* Now switch to __KERNEL_CS so IRET works reliably */
@@ -78,6 +79,8 @@ SYM_CODE_START_NOALIGN(startup_64)
 
 .Lon_kernel_cs:
 	UNWIND_HINT_END_OF_STACK
+
+//	call	hv_sev_debugbreak
 
 #ifdef CONFIG_AMD_MEM_ENCRYPT
 	/*

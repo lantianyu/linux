@@ -339,6 +339,8 @@ static __init void os_xrstor_booting(struct xregs_state *xstate)
  * newly added supported features at build time and make people
  * actually look at the init state for the new feature.
  */
+#ifdef CONFIG_X86_USER_SHADOW_STACK
+
 #define XFEATURES_INIT_FPSTATE_HANDLED		\
 	(XFEATURE_MASK_FP |			\
 	 XFEATURE_MASK_SSE |			\
@@ -350,8 +352,22 @@ static __init void os_xrstor_booting(struct xregs_state *xstate)
 	 XFEATURE_MASK_BNDREGS |		\
 	 XFEATURE_MASK_BNDCSR |			\
 	 XFEATURE_MASK_PASID |			\
-	 XFEATURE_MASK_CET_USER |		\
+	 XFEATURE_MASK_XTILE |			\
+	 XFEATURE_MASK_CET_USER)
+#else
+#define XFEATURES_INIT_FPSTATE_HANDLED		\
+	(XFEATURE_MASK_FP |			\
+	 XFEATURE_MASK_SSE |			\
+	 XFEATURE_MASK_YMM |			\
+	 XFEATURE_MASK_OPMASK |			\
+	 XFEATURE_MASK_ZMM_Hi256 |		\
+	 XFEATURE_MASK_Hi16_ZMM	 |		\
+	 XFEATURE_MASK_PKRU |			\
+	 XFEATURE_MASK_BNDREGS |		\
+	 XFEATURE_MASK_BNDCSR |			\
+	 XFEATURE_MASK_PASID |			\
 	 XFEATURE_MASK_XTILE)
+#endif
 
 /*
  * setup the xstate image representing the init state
@@ -550,7 +566,9 @@ static bool __init check_xstate_against_struct(int nr)
 	case XFEATURE_PKRU:	  return XCHECK_SZ(sz, nr, struct pkru_state);
 	case XFEATURE_PASID:	  return XCHECK_SZ(sz, nr, struct ia32_pasid_state);
 	case XFEATURE_XTILE_CFG:  return XCHECK_SZ(sz, nr, struct xtile_cfg);
+#ifdef CONFIG_X86_USER_SHADOW_STACK
 	case XFEATURE_CET_USER:	  return XCHECK_SZ(sz, nr, struct cet_user_state);
+#endif
 	case XFEATURE_XTILE_DATA: check_xtile_data_against_struct(sz); return true;
 	default:
 		XSTATE_WARN_ON(1, "No structure for xstate: %d\n", nr);

@@ -69,7 +69,7 @@ EXPORT_SYMBOL_GPL(hv_stimer0_isr);
  * per-cpu interrupts, which also implies Direct Mode.
  */
 static irqreturn_t __maybe_unused hv_stimer0_percpu_isr(int irq, void *dev_id)
-{
+{	
 	hv_stimer0_isr();
 	return IRQ_HANDLED;
 }

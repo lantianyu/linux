@@ -338,7 +338,7 @@ int __init hv_common_init(void)
 	 */
 	hyperv_pcpu_input_arg = alloc_percpu(void  *);
 	BUG_ON(!hyperv_pcpu_input_arg);
-
+	
 	/* Allocate the per-CPU state for output arg for root */
 	if (hv_root_partition) {
 		hyperv_pcpu_output_arg = alloc_percpu(void *);
@@ -609,6 +609,11 @@ bool __weak hv_isolation_type_tdx(void)
 	return false;
 }
 EXPORT_SYMBOL_GPL(hv_isolation_type_tdx);
+
+void __weak hv_setup_proxy_handler(void (*handler)(void))
+{
+}
+EXPORT_SYMBOL_GPL(hv_setup_proxy_handler);
 
 void __weak hv_setup_vmbus_handler(void (*handler)(void))
 {

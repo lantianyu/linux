@@ -288,6 +288,8 @@ static void hv_send_ipi_self(int vector)
 
 void __init hv_apic_init(void)
 {
+	return;
+
 	if (ms_hyperv.hints & HV_X64_CLUSTER_IPI_RECOMMENDED) {
 		pr_info("Hyper-V: Using IPI hypercalls\n");
 		/*
@@ -303,26 +305,26 @@ void __init hv_apic_init(void)
 		apic_update_callback(send_IPI_self, hv_send_ipi_self);
 	}
 
-	if (ms_hyperv.hints & HV_X64_APIC_ACCESS_RECOMMENDED) {
-		pr_info("Hyper-V: Using enlightened APIC (%s mode)",
-			x2apic_enabled() ? "x2apic" : "xapic");
-		/*
-		 * When in x2apic mode, don't use the Hyper-V specific APIC
-		 * accessors since the field layout in the ICR register is
-		 * different in x2apic mode. Furthermore, the architectural
-		 * x2apic MSRs function just as well as the Hyper-V
-		 * synthetic APIC MSRs, so there's no benefit in having
-		 * separate Hyper-V accessors for x2apic mode. The only
-		 * exception is hv_apic_eoi_write, because it benefits from
-		 * lazy EOI when available, but the same accessor works for
-		 * both xapic and x2apic because the field layout is the same.
-		 */
-		apic_update_callback(eoi, hv_apic_eoi_write);
-		if (!x2apic_enabled()) {
-			apic_update_callback(read, hv_apic_read);
-			apic_update_callback(write, hv_apic_write);
-			apic_update_callback(icr_write, hv_apic_icr_write);
-			apic_update_callback(icr_read, hv_apic_icr_read);
-		}
-	}
+//	if (ms_hyperv.hints & HV_X64_APIC_ACCESS_RECOMMENDED) {
+//		pr_info("Hyper-V: Using enlightened APIC (%s mode)",
+//			x2apic_enabled() ? "x2apic" : "xapic");
+//		/*
+//		 * When in x2apic mode, don't use the Hyper-V specific APIC
+//		 * accessors since the field layout in the ICR register is
+//		 * different in x2apic mode. Furthermore, the architectural
+//		 * x2apic MSRs function just as well as the Hyper-V
+//		 * synthetic APIC MSRs, so there's no benefit in having
+//		 * separate Hyper-V accessors for x2apic mode. The only
+//		 * exception is hv_apic_eoi_write, because it benefits from
+//		 * lazy EOI when available, but the same accessor works for
+//		 * both xapic and x2apic because the field layout is the same.
+//		 */
+//		apic_update_callback(eoi, hv_apic_eoi_write);
+//		if (!x2apic_enabled()) {
+//			apic_update_callback(read, hv_apic_read);
+//			apic_update_callback(write, hv_apic_write);
+//			apic_update_callback(icr_write, hv_apic_icr_write);
+//			apic_update_callback(icr_read, hv_apic_icr_read);
+//		}
+//	}
 }

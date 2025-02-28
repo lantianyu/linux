@@ -53,6 +53,7 @@ static long __percpu *vmbus_evt;
 
 /* Values parsed from ACPI DSDT */
 int vmbus_irq;
+int sint0_irq;
 int vmbus_interrupt;
 
 /*
@@ -1276,6 +1277,11 @@ sched_unlock_rcu:
 	}
 }
 
+static void proxy_isr(void)
+{
+	pr_info("get proxy isr.\n");
+}
+
 static void vmbus_isr(void)
 {
 	struct hv_per_cpu_context *hv_cpu
@@ -1306,11 +1312,19 @@ static irqreturn_t vmbus_percpu_isr(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+<<<<<<< ours
 static void vmbus_percpu_work(struct work_struct *work)
 {
 	unsigned int cpu = smp_processor_id();
 
 	hv_synic_init(cpu);
+=======
+static irqreturn_t proxy_percpu_isr(int irq, void *dev_id)
+{
+	pr_info("get irq.\n");
+	vmbus_isr();
+	return IRQ_HANDLED;
+>>>>>>> theirs
 }
 
 /*
@@ -1327,6 +1341,7 @@ static int vmbus_bus_init(void)
 	struct work_struct __percpu *works;
 
 	ret = hv_init();
+	
 	if (ret != 0) {
 		pr_err("Unable to initialize the hypervisor - 0x%x\n", ret);
 		return ret;
@@ -1345,8 +1360,10 @@ static int vmbus_bus_init(void)
 	 * the VMbus interrupt handler.
 	 */
 
+	hv_setup_proxy_handler(proxy_isr);
 	if (vmbus_irq == -1) {
 		hv_setup_vmbus_handler(vmbus_isr);
+		
 	} else {
 		vmbus_evt = alloc_percpu(long);
 		ret = request_percpu_irq(vmbus_irq, vmbus_percpu_isr,
@@ -1394,6 +1411,7 @@ static int vmbus_bus_init(void)
 	hyperv_cpuhp_online = ret;
 
 	ret = vmbus_connect();
+
 	if (ret)
 		goto err_connect;
 
@@ -1403,7 +1421,7 @@ static int vmbus_bus_init(void)
 	 */
 	atomic_notifier_chain_register(&panic_notifier_list,
 			       &hyperv_panic_vmbus_unload_block);
-
+	
 	vmbus_request_offers();
 
 	return 0;
@@ -2668,6 +2686,7 @@ static int __init hv_acpi_init(void)
 	 */
 #ifdef HYPERVISOR_CALLBACK_VECTOR
 	vmbus_interrupt = HYPERVISOR_CALLBACK_VECTOR;
+	sint0_irq = HYPERV_STIMER0_VECTOR;
 	vmbus_irq = -1;
 #endif
 

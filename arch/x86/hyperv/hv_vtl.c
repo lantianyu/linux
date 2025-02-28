@@ -20,84 +20,84 @@ static struct real_mode_header hv_vtl_real_mode_header;
 static bool __init hv_vtl_msi_ext_dest_id(void)
 {
 	return true;
-}
-
-void __init hv_vtl_init_platform(void)
-{
-	pr_info("Linux runs in Hyper-V Virtual Trust Level\n");
-
-	x86_platform.realmode_reserve = x86_init_noop;
-	x86_platform.realmode_init = x86_init_noop;
-	x86_init.irqs.pre_vector_init = x86_init_noop;
-	x86_init.timers.timer_init = x86_init_noop;
-
-	/* Avoid searching for BIOS MP tables */
-	x86_init.mpparse.find_mptable = x86_init_noop;
-	x86_init.mpparse.early_parse_smp_cfg = x86_init_noop;
-
-	x86_platform.get_wallclock = get_rtc_noop;
-	x86_platform.set_wallclock = set_rtc_noop;
-	x86_platform.get_nmi_reason = hv_get_nmi_reason;
-
-	x86_platform.legacy.i8042 = X86_LEGACY_I8042_PLATFORM_ABSENT;
-	x86_platform.legacy.rtc = 0;
-	x86_platform.legacy.warm_reset = 0;
-	x86_platform.legacy.reserve_bios_regions = 0;
-	x86_platform.legacy.devices.pnpbios = 0;
-
-	x86_init.hyper.msi_ext_dest_id = hv_vtl_msi_ext_dest_id;
-}
-
-static inline u64 hv_vtl_system_desc_base(struct ldttss_desc *desc)
-{
-	return ((u64)desc->base3 << 32) | ((u64)desc->base2 << 24) |
-		(desc->base1 << 16) | desc->base0;
-}
-
-static inline u32 hv_vtl_system_desc_limit(struct ldttss_desc *desc)
-{
-	return ((u32)desc->limit1 << 16) | (u32)desc->limit0;
-}
-
-typedef void (*secondary_startup_64_fn)(void*, void*);
-static void hv_vtl_ap_entry(void)
-{
-	((secondary_startup_64_fn)secondary_startup_64)(&boot_params, &boot_params);
-}
-
-static int hv_vtl_bringup_vcpu(u32 target_vp_index, int cpu, u64 eip_ignored)
-{
-	u64 status;
-	int ret = 0;
-	struct hv_enable_vp_vtl *input;
-	unsigned long irq_flags;
-
-	struct desc_ptr gdt_ptr;
-	struct desc_ptr idt_ptr;
-
-	struct ldttss_desc *tss;
-	struct ldttss_desc *ldt;
-	struct desc_struct *gdt;
-
-	struct task_struct *idle = idle_thread_get(cpu);
-	u64 rsp = (unsigned long)idle->thread.sp;
-
-	u64 rip = (u64)&hv_vtl_ap_entry;
-
-	native_store_gdt(&gdt_ptr);
-	store_idt(&idt_ptr);
-
-	gdt = (struct desc_struct *)((void *)(gdt_ptr.address));
-	tss = (struct ldttss_desc *)(gdt + GDT_ENTRY_TSS);
-	ldt = (struct ldttss_desc *)(gdt + GDT_ENTRY_LDT);
-
-	local_irq_save(irq_flags);
-
-	input = *this_cpu_ptr(hyperv_pcpu_input_arg);
-	memset(input, 0, sizeof(*input));
-
-	input->partition_id = HV_PARTITION_ID_SELF;
-	input->vp_index = target_vp_index;
+}									\
+									\
+void __init hv_vtl_init_platform(void)					\
+{									\
+	pr_info("Linux runs in Hyper-V Virtual Trust Level\n");		\
+									\
+	x86_platform.realmode_reserve = x86_init_noop;			\
+	x86_platform.realmode_init = x86_init_noop;			\
+	x86_init.irqs.pre_vector_init = x86_init_noop;			\
+	x86_init.timers.timer_init = x86_init_noop;			\
+									\
+	/* Avoid searching for BIOS MP tables */			\
+	x86_init.mpparse.find_mptable = x86_init_noop;			\
+	x86_init.mpparse.early_parse_smp_cfg = x86_init_noop;		\
+									\
+	x86_platform.get_wallclock = get_rtc_noop;			\
+	x86_platform.set_wallclock = set_rtc_noop;			\
+	x86_platform.get_nmi_reason = hv_get_nmi_reason;		\
+									\
+	x86_platform.legacy.i8042 = X86_LEGACY_I8042_PLATFORM_ABSENT;	\
+	x86_platform.legacy.rtc = 0;					\
+	x86_platform.legacy.warm_reset = 0;				\
+	x86_platform.legacy.reserve_bios_regions = 0;			\
+	x86_platform.legacy.devices.pnpbios = 0;			\
+									\
+	x86_init.hyper.msi_ext_dest_id = hv_vtl_msi_ext_dest_id;	\
+}									\
+									\
+static inline u64 hv_vtl_system_desc_base(struct ldttss_desc *desc)	\
+{									\
+	return ((u64)desc->base3 << 32) | ((u64)desc->base2 << 24) |	\
+		(desc->base1 << 16) | desc->base0;			\
+}									\
+									\
+static inline u32 hv_vtl_system_desc_limit(struct ldttss_desc *desc)	\
+{									\
+	return ((u32)desc->limit1 << 16) | (u32)desc->limit0;		\
+}									\
+									\
+typedef void (*secondary_startup_64_fn)(void*, void*);			\
+static void hv_vtl_ap_entry(void)					\
+{									\
+	((secondary_startup_64_fn)secondary_startup_64)(&boot_params, &boot_params); \
+}									\
+									\
+static int hv_vtl_bringup_vcpu(u32 target_vp_index, int cpu, u64 eip_ignored) \
+{									\
+	u64 status;							\
+	int ret = 0;							\
+	struct hv_enable_vp_vtl *input;					\
+	unsigned long irq_flags;					\
+									\
+	struct desc_ptr gdt_ptr;					\
+	struct desc_ptr idt_ptr;					\
+									\
+	struct ldttss_desc *tss;					\
+	struct ldttss_desc *ldt;					\
+	struct desc_struct *gdt;					\
+									\
+	struct task_struct *idle = idle_thread_get(cpu);		\
+	u64 rsp = (unsigned long)idle->thread.sp;			\
+									\
+	u64 rip = (u64)&hv_vtl_ap_entry;				\
+									\
+	native_store_gdt(&gdt_ptr);					\
+	store_idt(&idt_ptr);						\
+									\
+	gdt = (struct desc_struct *)((void *)(gdt_ptr.address));	\
+	tss = (struct ldttss_desc *)(gdt + GDT_ENTRY_TSS);		\
+	ldt = (struct ldttss_desc *)(gdt + GDT_ENTRY_LDT);		\
+									\
+	local_irq_save(irq_flags);					\
+									\
+	input = *this_cpu_ptr(hyperv_pcpu_input_arg);			\
+	memset(input, 0, sizeof(*input));				\
+									\
+	input->partition_id = HV_PARTITION_ID_SELF;			\
+	input->vp_index = target_vp_index;				\
 	input->target_vtl.target_vtl = HV_VTL_MGMT;
 
 	/*

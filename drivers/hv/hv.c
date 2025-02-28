@@ -25,7 +25,6 @@
 
 /* The one and only */
 struct hv_context hv_context;
-
 /*
  * hv_init - Main initialization routine.
  *
@@ -201,8 +200,8 @@ err:
 	 * the caller cleans up by calling hv_synic_free()
 	 */
 	return ret;
-}
 
+}
 void hv_synic_free(void)
 {
 	int cpu, ret;
@@ -251,6 +250,9 @@ void hv_synic_free(void)
 
 	kfree(hv_context.hv_numa_map);
 }
+
+
+void x2apic_savic_update_vector(unsigned int cpu, unsigned int vector, bool set);
 
 /*
  * hv_synic_init - Initialize the Synthetic Interrupt Controller.
@@ -307,10 +309,32 @@ void hv_synic_enable_regs(unsigned int cpu)
 	hv_set_msr(HV_MSR_SIEFP, siefp.as_uint64);
 
 	/* Setup the shared SINT. */
-	if (vmbus_irq != -1)
-		enable_percpu_irq(vmbus_irq, 0);
-	shared_sint.as_uint64 = hv_get_msr(HV_MSR_SINT0 + VMBUS_MESSAGE_SINT);
+	if (sint0_irq != -1)
+		enable_percpu_irq(sint0_irq, 0);
 
+	sint0_irq = HYPERV_VMBUS_PROXY_IRQ;
+	shared_sint.as_uint64 = hv_get_msr(HV_MSR_SINT0);
+	x2apic_savic_update_vector(0, sint0_irq, true);
+
+	shared_sint.vector = sint0_irq;
+	shared_sint.masked = false;
+
+	/*
+	 * On architectures where Hyper-V doesn't support AEOI (e.g., ARM64),
+	 * it doesn't provide a recommendation flag and AEOI must be disabled.
+	 */
+//#ifdef HV_DEPRECATING_AEOI_RECOMMENDED
+//	shared_sint.auto_eoi =
+//			!(ms_hyperv.hints & HV_DEPRECATING_AEOI_RECOMMENDED);
+//#else
+//	shared_sint.auto_eoi = 0;
+//#endif
+	shared_sint.auto_eoi = 0;
+	hv_set_msr(HV_MSR_SINT0, shared_sint.as_uint64);
+
+	shared_sint.as_uint64 = hv_get_msr(HV_MSR_SINT0 + VMBUS_MESSAGE_SINT);
+	x2apic_savic_update_vector(0, vmbus_interrupt, true);
+	
 	shared_sint.vector = vmbus_interrupt;
 	shared_sint.masked = false;
 
@@ -318,12 +342,13 @@ void hv_synic_enable_regs(unsigned int cpu)
 	 * On architectures where Hyper-V doesn't support AEOI (e.g., ARM64),
 	 * it doesn't provide a recommendation flag and AEOI must be disabled.
 	 */
-#ifdef HV_DEPRECATING_AEOI_RECOMMENDED
-	shared_sint.auto_eoi =
-			!(ms_hyperv.hints & HV_DEPRECATING_AEOI_RECOMMENDED);
-#else
+//#ifdef HV_DEPRECATING_AEOI_RECOMMENDED
+//	shared_sint.auto_eoi =
+//			!(ms_hyperv.hints & HV_DEPRECATING_AEOI_RECOMMENDED);
+//#else
+//	shared_sint.auto_eoi = 0;
+//#endif
 	shared_sint.auto_eoi = 0;
-#endif
 	hv_set_msr(HV_MSR_SINT0 + VMBUS_MESSAGE_SINT, shared_sint.as_uint64);
 
 	/* Enable the global synic bit */

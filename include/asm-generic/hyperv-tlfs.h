@@ -285,7 +285,8 @@ enum hv_message_type {
 	HVMSG_X64_CPUID_INTERCEPT	= 0x80010002,
 	HVMSG_X64_EXCEPTION_INTERCEPT	= 0x80010003,
 	HVMSG_X64_APIC_EOI		= 0x80010004,
-	HVMSG_X64_LEGACY_FP_ERROR	= 0x80010005
+	HVMSG_X64_LEGACY_FP_ERROR	= 0x80010005,
+	HVMSG_X64_PROXY_INTERRUPT	= 0x8001000f,	
 };
 
 /* Define synthetic interrupt controller message flags. */
@@ -720,6 +721,40 @@ struct hv_set_vp_registers_input {
 		};
 	} element[];
 } __packed;
+
+union hv_x64_register_sev_gpa_page
+{
+	u64 u64;
+	struct {
+		u64 enabled:1;
+		u64 reserved:11;
+		u64 pagenumber:52;
+	};
+} __packed;
+
+union sev_secure_avic_control
+{
+    u64 u64;
+    struct
+    {
+        u64 secureavicen : 1;
+        u64 allowednmi : 1;
+        u64 reserved02_11 : 10;
+        u64 guestapicbackingpageptr : 52;
+    };
+} __packed;
+
+union hv_register_guest_vsm_partition_config
+{
+    u64 u64;
+    struct
+    {
+        u64 maximumvtl  : 4;
+        u64 vtl0_irq_inject_policy : 2;
+        u64 vtl1_irq_inject_policy : 2;
+        u64 reservedz   : 56;
+    };
+};
 
 enum hv_device_type {
 	HV_DEVICE_TYPE_LOGICAL = 0,

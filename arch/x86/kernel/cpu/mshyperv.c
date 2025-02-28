@@ -109,6 +109,7 @@ void hv_set_msr(unsigned int reg, u64 value)
 }
 EXPORT_SYMBOL_GPL(hv_set_msr);
 
+static void (*proxy_handler)(void);
 static void (*vmbus_handler)(void);
 static void (*hv_stimer0_handler)(void);
 static void (*hv_kexec_handler)(void);
@@ -122,10 +123,30 @@ DEFINE_IDTENTRY_SYSVEC(sysvec_hyperv_callback)
 	if (vmbus_handler)
 		vmbus_handler();
 
-	if (ms_hyperv.hints & HV_DEPRECATING_AEOI_RECOMMENDED)
-		apic_eoi();
+	//if (ms_hyperv.hints & HV_DEPRECATING_AEOI_RECOMMENDED)
+	apic_eoi();
 
 	set_irq_regs(old_regs);
+}
+
+DEFINE_IDTENTRY_SYSVEC(sysvec_hyperv_proxy_irq)
+{
+	struct pt_regs *old_regs = set_irq_regs(regs);
+
+	pr_info("get proxy irq.\n");	
+	inc_irq_stat(irq_hv_proxy_irq_count);
+	if (proxy_handler)
+		proxy_handler();
+
+	//if (ms_hyperv.hints & HV_DEPRECATING_AEOI_RECOMMENDED)
+	apic_eoi();
+
+	set_irq_regs(old_regs);
+}
+
+void hv_setup_proxy_handler(void (*handler)(void))
+{
+	proxy_handler = handler;
 }
 
 void hv_setup_vmbus_handler(void (*handler)(void))
@@ -366,6 +387,8 @@ int hv_get_hypervisor_version(union hv_hypervisor_version_info *info)
 	return 0;
 }
 
+extern void x2apic_savic_update_vector(unsigned int cpu, unsigned int vector, bool set);
+
 static void __init ms_hyperv_init_platform(void)
 {
 	int hv_max_functions_eax;
@@ -548,6 +571,7 @@ static void __init ms_hyperv_init_platform(void)
 
 	/* Install system interrupt handler for hypervisor callback */
 	sysvec_install(HYPERVISOR_CALLBACK_VECTOR, sysvec_hyperv_callback);
+	sysvec_install(HYPERV_VMBUS_PROXY_IRQ, sysvec_hyperv_proxy_irq);
 
 	/* Install system interrupt handler for reenlightenment notifications */
 	if (ms_hyperv.features & HV_ACCESS_REENLIGHTENMENT) {
@@ -588,6 +612,9 @@ static void __init ms_hyperv_init_platform(void)
 	 */
 	if (!(ms_hyperv.features & HV_ACCESS_TSC_INVARIANT))
 		mark_tsc_unstable("running on Hyper-V");
+
+	if (hv_isolation_type_snp())
+		hv_sev_init_mem_and_cpu();
 
 	hardlockup_detector_disable();
 }

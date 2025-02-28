@@ -316,6 +316,8 @@ enum hv_isolation_type {
 #define	HV_X64_REGISTER_VSM_VP_STATUS	0x000D0003
 #define	HV_X64_VTL_MASK			GENMASK(3, 0)
 
+#define HV_X64_REGISTER_VSM_PARTITION_STATUS 0x000D0004
+#define HV_X64_REGISTER_SEV_AVIC_GPA    0x00090043
 /* Hyper-V memory host visibility */
 enum hv_mem_host_visibility {
 	VMBUS_PAGE_NOT_VISIBLE		= 0,
