@@ -314,7 +314,7 @@ void hv_synic_enable_regs(unsigned int cpu)
 
 	sint0_irq = HYPERV_VMBUS_PROXY_IRQ;
 	shared_sint.as_uint64 = hv_get_msr(HV_MSR_SINT0);
-	x2apic_savic_update_vector(0, sint0_irq, true);
+	x2apic_savic_update_vector(smp_processor_id(), sint0_irq, true);
 
 	shared_sint.vector = sint0_irq;
 	shared_sint.masked = false;
@@ -333,8 +333,8 @@ void hv_synic_enable_regs(unsigned int cpu)
 	hv_set_msr(HV_MSR_SINT0, shared_sint.as_uint64);
 
 	shared_sint.as_uint64 = hv_get_msr(HV_MSR_SINT0 + VMBUS_MESSAGE_SINT);
-	x2apic_savic_update_vector(0, vmbus_interrupt, true);
-	
+	x2apic_savic_update_vector(smp_processor_id(), vmbus_interrupt, true);
+
 	shared_sint.vector = vmbus_interrupt;
 	shared_sint.masked = false;
 

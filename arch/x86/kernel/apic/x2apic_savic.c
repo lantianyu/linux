@@ -431,9 +431,9 @@ static void x2apic_savic_setup(void)
 	savic_wr_control_msr(gpa | MSR_AMD64_SECURE_AVIC_EN | MSR_AMD64_SECURE_AVIC_ALLOWEDNMI);
 	this_cpu_write(savic_setup_done, true);
 
-	x2apic_savic_update_vector(0, HYPERV_REENLIGHTENMENT_VECTOR, true);
-	x2apic_savic_update_vector(0, HYPERV_STIMER0_VECTOR, true);
-	x2apic_savic_update_vector(0, HYPERVISOR_CALLBACK_VECTOR, true);
+	x2apic_savic_update_vector(smp_processor_id(), HYPERV_REENLIGHTENMENT_VECTOR, true);
+	x2apic_savic_update_vector(smp_processor_id(), HYPERV_STIMER0_VECTOR, true);
+	x2apic_savic_update_vector(smp_processor_id(), HYPERVISOR_CALLBACK_VECTOR, true);
 }
 
 static int x2apic_savic_probe(void)

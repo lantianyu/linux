@@ -39,6 +39,7 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#define DEBUG		1
 #include <linux/init.h>
 #include <linux/smp.h>
 #include <linux/export.h>
@@ -877,17 +878,25 @@ int common_cpu_up(unsigned int cpu, struct task_struct *idle)
  */
 static int do_boot_cpu(u32 apicid, int cpu, struct task_struct *idle)
 {
+	pr_info("%s %d\n", __func__, __LINE__);
+	
 	unsigned long start_ip = real_mode_header->trampoline_start;
 	int ret;
 
+	pr_info("%s %d\n", __func__, __LINE__);
+	
 #ifdef CONFIG_X86_64
 	/* If 64-bit wakeup method exists, use the 64-bit mode trampoline IP */
-	if (apic->wakeup_secondary_cpu_64)
+	if (apic->wakeup_secondary_cpu_64) {
 		start_ip = real_mode_header->trampoline_start64;
+		pr_info("%s %d\n", __func__, __LINE__);
+	}
 #endif
 	idle->thread.sp = (unsigned long)task_pt_regs(idle);
 	initial_code = (unsigned long)start_secondary;
 
+	pr_info("%s %d\n", __func__, __LINE__);
+	
 	if (IS_ENABLED(CONFIG_X86_32)) {
 		early_gdt_descr.address = (unsigned long)get_cpu_gdt_rw(cpu);
 		initial_stack  = idle->thread.sp;
@@ -895,12 +904,16 @@ static int do_boot_cpu(u32 apicid, int cpu, struct task_struct *idle)
 		smpboot_control = cpu;
 	}
 
+	pr_info("%s %d\n", __func__, __LINE__);
+
 	/* Enable the espfix hack for this CPU */
 	init_espfix_ap(cpu);
 
 	/* So we see what's up */
 	announce_cpu(cpu, apicid);
 
+	pr_info("%s %d\n", __func__, __LINE__);
+	
 	/*
 	 * This grunge runs the startup process for
 	 * the targeted processor.
@@ -921,6 +934,8 @@ static int do_boot_cpu(u32 apicid, int cpu, struct task_struct *idle)
 
 	smp_mb();
 
+	pr_info("%s %d\n", __func__, __LINE__);
+	
 	/*
 	 * Wake up a CPU in difference cases:
 	 * - Use a method from the APIC driver if one defined, with wakeup
@@ -969,9 +984,12 @@ int native_kick_ap(unsigned int cpu, struct task_struct *tidle)
 	/* the FPU context is blank, nobody can own it */
 	per_cpu(fpu_fpregs_owner_ctx, cpu) = NULL;
 
+	pr_info("%s %d\n", __func__, __LINE__);
+	
 	err = common_cpu_up(cpu, tidle);
 	if (err)
 		return err;
+	pr_info("%s %d\n", __func__, __LINE__);
 
 	err = do_boot_cpu(apicid, cpu, tidle);
 	if (err)

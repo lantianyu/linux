@@ -135,7 +135,6 @@ static void __init setup_real_mode(void)
 	/* Must be performed *after* relocation. */
 	trampoline_header = (struct trampoline_header *)
 		__va(real_mode_header->trampoline_header);
-
 #ifdef CONFIG_X86_32
 	trampoline_header->start = __pa_symbol(startup_32_smp);
 	trampoline_header->gdt_limit = __BOOT_DS + 7;

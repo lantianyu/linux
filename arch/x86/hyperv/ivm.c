@@ -27,6 +27,7 @@
 #include <asm/coco.h>
 #include <asm/io_apic.h>
 #include <asm/sev.h>
+#include <asm/apic.h>
 
 #ifdef CONFIG_AMD_MEM_ENCRYPT
 
@@ -418,6 +419,8 @@ void sev_configure_hv_secure_avic(void)
 	pr_info("config secure interrupt.\n");
 }
 
+static struct real_mode_header hv_enlightened_real_mode_header;
+
 int hv_snp_boot_ap(u32 cpu, unsigned long start_ip)
 {
 	struct sev_es_save_area *vmsa = (struct sev_es_save_area *)
@@ -428,6 +431,7 @@ int hv_snp_boot_ap(u32 cpu, unsigned long start_ip)
 	struct hv_enable_vp_vtl *start_vp_input;
 	unsigned long flags;
 
+	pr_info("%s %d\n", __func__, __LINE__);
 	if (!vmsa)
 		return -ENOMEM;
 
@@ -758,6 +762,10 @@ static int num_processors = 0;
 static __init void hv_snp_get_smp_config(void)
 {
 
+	pr_info("%s %d\n", __func__, __LINE__);
+
+	smp_found_config = 1;
+	set_nr_cpu_ids(processor_count);
 	/*
 	 * There is no firmware and ACPI MADT table support in
 	 * in the Hyper-V SEV-SNP enlightened guest. Set smp
@@ -765,10 +773,12 @@ static __init void hv_snp_get_smp_config(void)
 	 */
 	while (num_processors < processor_count) {
 		early_per_cpu(x86_cpu_to_apicid, num_processors) = num_processors;
+		topology_register_apic(num_processors, CPU_ACPIID_INVALID, true);		
 		//early_per_cpu(x86_bios_cpu_apicid, num_processors) = num_processors;
 		set_bit(num_processors, phys_cpu_present_map);
 		set_cpu_possible(num_processors, true);
 		set_cpu_present(num_processors, true);
+		//set_cpu_online(num_processors, true);
 		num_processors++;
 	}
 }
@@ -793,8 +803,8 @@ __init void hv_sev_init_mem_and_cpu(void)
 	x86_platform.get_wallclock		= get_rtc_noop;
 	x86_init.resources.probe_roms		= x86_init_noop;
 	x86_init.resources.reserve_resources	= x86_init_noop;
-	x86_init.mpparse.early_parse_smp_cfg	= x86_init_noop;
-	x86_init.mpparse.parse_smp_cfg		= hv_snp_get_smp_config;
+	x86_init.mpparse.early_parse_smp_cfg	= hv_snp_get_smp_config;
+	x86_init.mpparse.parse_smp_cfg		= x86_init_noop;
 
 	/*
 	 * Hyper-V SEV-SNP enlightened guest doesn't support ioapic
@@ -804,8 +814,11 @@ __init void hv_sev_init_mem_and_cpu(void)
 
 	/* Get processor and mem info. */
 	processor_count = *(u32 *)__va(EN_SEV_SNP_PROCESSOR_INFO_ADDR);
+	pr_info("cpu number %d ---------------- \n", processor_count);
 	entry = (struct memory_map_entry *)__va(EN_SEV_SNP_MEM_INFO_ADDR);
 
+	real_mode_header = &hv_enlightened_real_mode_header;
+	
 	/*
 	 * There is no bootloader/EFI firmware in the SEV SNP guest.
 	 * E820 table in the memory just describes memory for kernel,

@@ -461,10 +461,11 @@ void __init topology_init_possible_cpus(void)
 {
 	unsigned int assigned = topo_info.nr_assigned_cpus;
 	unsigned int disabled = topo_info.nr_disabled_cpus;
-	unsigned int cnta, cntb, cpu, allowed = 1;
+	unsigned int cnta, cntb, cpu, allowed = topo_info.nr_assigned_cpus;
 	unsigned int total = assigned + disabled;
 	u32 apicid, firstid;
 
+	set_nr_cpu_ids(total);
 	/*
 	 * If there was no APIC registered, then fake one so that the
 	 * topology bitmap is populated. That ensures that the code below
@@ -476,14 +477,15 @@ void __init topology_init_possible_cpus(void)
 	if (topo_info.boot_cpu_apic_id == BAD_APICID)
 		topology_register_boot_apic(0);
 
-	if (!restrict_to_up()) {
+	//if (!restrict_to_up()) {
 		if (WARN_ON_ONCE(assigned > nr_cpu_ids)) {
 			disabled += assigned - nr_cpu_ids;
 			assigned = nr_cpu_ids;
 		}
 		allowed = min_t(unsigned int, total, nr_cpu_ids);
-	}
+	//}
 
+	
 	if (total > allowed)
 		pr_warn("%u possible CPUs exceed the limit of %u\n", total, allowed);
 

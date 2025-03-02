@@ -24,6 +24,8 @@
  */
 #define cpumask_pr_args(maskp)		nr_cpu_ids, cpumask_bits(maskp)
 
+//#define nr_cpu_ids ((unsigned int)NR_CPUS)
+
 #if (NR_CPUS == 1) || defined(CONFIG_FORCE_NR_CPUS)
 #define nr_cpu_ids ((unsigned int)NR_CPUS)
 #else

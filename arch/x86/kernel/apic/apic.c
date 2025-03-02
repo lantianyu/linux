@@ -1375,14 +1375,9 @@ void __init apic_intr_mode_init(void)
 
 	x86_32_install_bigsmp();
 
-	pr_info("%s %d\n", __func__, __LINE__);
 	if (x86_platform.apic_post_init)
 		x86_platform.apic_post_init();
-
-	pr_info("%s %d\n", __func__, __LINE__);
-
 	apic_bsp_setup(upmode);
-	pr_info("%s %d\n", __func__, __LINE__);
 }
 
 static void lapic_setup_esr(void)
@@ -1504,20 +1499,15 @@ static void setup_local_APIC(void)
 {
 	int cpu = smp_processor_id();
 	unsigned int value;
-	pr_info("%s %d.\n", __func__, __LINE__);
 
 	if (apic_is_disabled) {
 		disable_ioapic_support();
 		return;
 	}
 
-	pr_info("%s %d.\n", __func__, __LINE__);
-
 	if (apic->setup)
 		apic->setup();
 
-	pr_info("%s %d.\n", __func__, __LINE__);
-	
 	/*
 	 * If this comes from kexec/kcrash the APIC might be enabled in
 	 * SPIV. Soft disable it before doing further initialization.
@@ -1535,7 +1525,6 @@ static void setup_local_APIC(void)
 		apic_write(APIC_ESR, 0);
 	}
 #endif
-	pr_info("%s %d.\n", __func__, __LINE__);
 	
 	/*
 	 * Intel recommends to set DFR, LDR and TPR before enabling
@@ -1546,7 +1535,6 @@ static void setup_local_APIC(void)
 	 */
 	if (apic->init_apic_ldr)
 		apic->init_apic_ldr();
-	pr_info("%s %d.\n", __func__, __LINE__);
 
 	/*
 	 * Set Task Priority to 'accept all except vectors 0-31'.  An APIC
@@ -1562,8 +1550,6 @@ static void setup_local_APIC(void)
 	/* Clear eventually stale ISR/IRR bits */
 	apic_pending_intr_clear();
 
-	pr_info("%s %d.\n", __func__, __LINE__);
-	
 	/*
 	 * Now that we are all set up, enable the APIC
 	 */
@@ -1608,7 +1594,6 @@ static void setup_local_APIC(void)
 	value |= SPURIOUS_APIC_VECTOR;
 	apic_write(APIC_SPIV, value);
 
-	pr_info("%s %d.\n", __func__, __LINE__);
 	perf_events_lapic_init();
 
 	/*
@@ -1630,7 +1615,6 @@ static void setup_local_APIC(void)
 		apic_pr_verbose("Masked ExtINT on CPU#%d\n", cpu);
 	}
 	apic_write(APIC_LVT0, value);
-	pr_info("%s %d.\n", __func__, __LINE__);
 
 	/*
 	 * Only the BSP sees the LINT1 NMI signal by default. This can be
@@ -1646,8 +1630,6 @@ static void setup_local_APIC(void)
 	if (!lapic_is_integrated())
 		value |= APIC_LVT_LEVEL_TRIGGER;
 	apic_write(APIC_LVT1, value);
-
-	pr_info("%s %d.\n", __func__, __LINE__);
 
 #ifdef CONFIG_X86_MCE_INTEL
 	/* Recheck CMCI information after local APIC is up on CPU #0 */
@@ -2350,30 +2332,21 @@ static void __init apic_bsp_up_setup(void)
 static void __init apic_bsp_setup(bool upmode)
 {
 	connect_bsp_APIC();
-	pr_info("%s %d.\n", __func__, __LINE__);
 
 	if (upmode)
 		apic_bsp_up_setup();
-	pr_info("%s %d.\n", __func__, __LINE__);
 	
 	setup_local_APIC();
 
-	pr_info("%s %d.\n", __func__, __LINE__);
-
 	enable_IO_APIC();
-	pr_info("%s %d.\n", __func__, __LINE__);
 	
 	end_local_APIC_setup();
-	pr_info("%s %d.\n", __func__, __LINE__);
 	
 	irq_remap_enable_fault_handling();
-	pr_info("%s %d.\n", __func__, __LINE__);
 	
 	setup_IO_APIC();
-	pr_info("%s %d.\n", __func__, __LINE__);
 	
 	lapic_update_legacy_vectors();
-	pr_info("%s %d.\n", __func__, __LINE__);	
 }
 
 #ifdef CONFIG_UP_LATE_INIT
