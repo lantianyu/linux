@@ -355,6 +355,9 @@ void x2apic_savic_update_vector(unsigned int cpu, unsigned int vector, bool set)
 	unsigned long *reg;
 	int reg_off;
 
+	if (!cc_platform_has(CC_ATTR_SNP_SECURE_AVIC))
+		return;
+
 	backing_page = per_cpu(apic_backing_page, cpu);
 	reg_off = SAVIC_ALLOWED_IRR_OFFSET + REG_POS(vector);
 	reg = (unsigned long *)((char *)backing_page + reg_off);

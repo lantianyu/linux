@@ -625,7 +625,7 @@ skip_hypercall_pg_init:
 
 	/* Find the VTL */
 	ms_hyperv.vtl = get_vtl();
-//	ms_hyperv.vtl = 2;
+	ms_hyperv.vtl = 0;
 
 //	if (ms_hyperv.vtl > 0) /* non default VTL */
 //		hv_vtl_early_init();

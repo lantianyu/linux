@@ -323,7 +323,7 @@ void hv_synic_enable_regs(unsigned int cpu)
 	 * On architectures where Hyper-V doesn't support AEOI (e.g., ARM64),
 	 * it doesn't provide a recommendation flag and AEOI must be disabled.
 	 */
-//#ifdef HV_DEPRECATING_AEOI_RECOMMENDED
+  //#ifdef HV_DEPRECATING_AEOI_RECOMMENDED
 //	shared_sint.auto_eoi =
 //			!(ms_hyperv.hints & HV_DEPRECATING_AEOI_RECOMMENDED);
 //#else

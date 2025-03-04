@@ -329,11 +329,11 @@ static void __init hv_smp_prepare_cpus(unsigned int max_cpus)
 	 *  Override wakeup_secondary_cpu_64 callback for SEV-SNP
 	 *  enlightened guest.
 	 */
-	//if (!ms_hyperv.paravisor_present && hv_isolation_type_snp()) {
-	pr_info("%s replace wakeup_secondary_cpu_64() with hv_snp_boot_ap() \n", __func__);
-	apic_update_callback(wakeup_secondary_cpu_64, hv_snp_boot_ap);
-	return;
-	//}
+	if (!ms_hyperv.paravisor_present && hv_isolation_type_snp()) {
+		pr_info("%s replace wakeup_secondary_cpu_64() with hv_snp_boot_ap() \n", __func__);
+		apic_update_callback(wakeup_secondary_cpu_64, hv_snp_boot_ap);
+		return;
+	}
 
 #ifdef CONFIG_X86_64
 	for_each_present_cpu(i) {

@@ -461,7 +461,7 @@ void __init topology_init_possible_cpus(void)
 {
 	unsigned int assigned = topo_info.nr_assigned_cpus;
 	unsigned int disabled = topo_info.nr_disabled_cpus;
-	unsigned int cnta, cntb, cpu, allowed = topo_info.nr_assigned_cpus;
+	unsigned int cnta, cntb, cpu, allowed = 1;
 	unsigned int total = assigned + disabled;
 	u32 apicid, firstid;
 

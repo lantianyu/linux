@@ -38,6 +38,7 @@
 #include <linux/pci.h>
 #include <clocksource/hyperv_timer.h>
 #include <asm/mshyperv.h>
+#include <asm/apic.h>
 #include "hyperv_vmbus.h"
 
 struct vmbus_dynid {
@@ -1304,6 +1305,7 @@ static void vmbus_isr(void)
 	}
 
 	add_interrupt_randomness(vmbus_interrupt);
+	native_apic_msr_eoi();
 }
 
 static irqreturn_t vmbus_percpu_isr(int irq, void *dev_id)

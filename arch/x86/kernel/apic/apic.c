@@ -592,7 +592,8 @@ static void setup_APIC_timer(void)
 	} else
 		clockevents_register_device(levt);
 
-	apic->update_vector(smp_processor_id(), LOCAL_TIMER_VECTOR, true);
+	if (apic->update_vector)
+		apic->update_vector(smp_processor_id(), LOCAL_TIMER_VECTOR, true);
 }
 
 /*

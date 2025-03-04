@@ -138,7 +138,6 @@ static void apic_update_irq_cfg(struct irq_data *irqd, unsigned int vector,
 	trace_vector_config(irqd->irq, vector, cpu,
 			    apicd->hw_irq_cfg.dest_apicid);
 }
-
 static void apic_update_vector(struct irq_data *irqd, unsigned int newvec,
 			       unsigned int newcpu)
 {

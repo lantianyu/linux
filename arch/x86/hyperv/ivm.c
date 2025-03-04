@@ -463,6 +463,8 @@ int hv_snp_boot_ap(u32 cpu, unsigned long start_ip)
 	vmsa->rip = (u64)secondary_startup_64_no_verify;
 	vmsa->rsp = (u64)&ap_start_stack[PAGE_SIZE];
 
+	pr_info("%s %d\n", __func__, __LINE__);
+	
 	/*
 	 * Set the SNP-specific fields for this VMSA:
 	 *   VMPL level
@@ -814,7 +816,6 @@ __init void hv_sev_init_mem_and_cpu(void)
 
 	/* Get processor and mem info. */
 	processor_count = *(u32 *)__va(EN_SEV_SNP_PROCESSOR_INFO_ADDR);
-	pr_info("cpu number %d ---------------- \n", processor_count);
 	entry = (struct memory_map_entry *)__va(EN_SEV_SNP_MEM_INFO_ADDR);
 
 	real_mode_header = &hv_enlightened_real_mode_header;
