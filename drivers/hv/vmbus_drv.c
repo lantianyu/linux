@@ -1314,19 +1314,17 @@ static irqreturn_t vmbus_percpu_isr(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-<<<<<<< ours
 static void vmbus_percpu_work(struct work_struct *work)
 {
 	unsigned int cpu = smp_processor_id();
 
 	hv_synic_init(cpu);
-=======
+}
+
 static irqreturn_t proxy_percpu_isr(int irq, void *dev_id)
 {
-	pr_info("get irq.\n");
 	vmbus_isr();
 	return IRQ_HANDLED;
->>>>>>> theirs
 }
 
 /*
