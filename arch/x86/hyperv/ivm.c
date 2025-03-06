@@ -66,6 +66,7 @@ union hv_ghcb {
 	} hypercall;
 } __packed __aligned(HV_HYP_PAGE_SIZE);
 
+static struct real_mode_header hv_enlightened_real_mode_header;
 /* Only used in an SNP VM with the paravisor */
 static u16 hv_ghcb_version __ro_after_init;
 
@@ -78,7 +79,9 @@ static u8 inputbuf[PAGE_SIZE] __bss_decrypted __aligned(PAGE_SIZE);
 
 /* Functions only used in an SNP VM with the paravisor go here. */
 static u32 processor_count;
+static u8 inputbuf[PAGE_SIZE] __bss_decrypted __aligned(PAGE_SIZE);
 
+/* Functions only used in an SNP VM with the paravisor go here. */
 u64 hv_ghcb_hypercall(u64 control, void *input, void *output, u32 input_size)
 {
 	union hv_ghcb *hv_ghcb;
