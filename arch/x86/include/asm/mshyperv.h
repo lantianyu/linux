@@ -297,7 +297,7 @@ static inline bool hv_ghcb_negotiate_protocol(void) { return false; }
 static inline void hv_ghcb_terminate(unsigned int set, unsigned int reason) {}
 static inline int hv_snp_boot_ap(u32 cpu, unsigned long start_ip) { return 0; }
 static inline void hv_sev_init_mem_and_cpu(void) {}
-static inline u64 hv_set_savic_backing_page(u64 gpa) {}
+static inline enum es_result hv_set_savic_backing_page(u64 gpa) {}
 #endif
 
 #if defined(CONFIG_AMD_MEM_ENCRYPT) || defined(CONFIG_INTEL_TDX_GUEST)
