@@ -722,16 +722,6 @@ struct hv_set_vp_registers_input {
 	} element[];
 } __packed;
 
-union hv_x64_register_sev_gpa_page
-{
-	u64 u64;
-	struct {
-		u64 enabled:1;
-		u64 reserved:11;
-		u64 pagenumber:52;
-	};
-} __packed;
-
 union sev_secure_avic_control
 {
     u64 u64;
