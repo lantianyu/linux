@@ -422,45 +422,6 @@ void sev_configure_hv_secure_avic(void)
 	pr_info("config secure interrupt.\n");
 }
 
-enum es_result hv_set_savic_backing_page(u64 gfn)
-{
-	u64 control = HV_HYPERCALL_REP_COMP_1 | HVCALL_SET_VP_REGISTERS;
-	struct hv_set_vp_registers_input *input;
-	struct hv_set_vp_registers_input *output;
-	union hv_x64_register_sev_gpa_page value;
-	unsigned long flags;
-	int retry = 5;
-	u64 ret;
-	
-	local_irq_save(flags);
-	input = (struct hv_set_vp_registers_input *)inputbuf;
-
-	value.enabled = 1;
-	value.reserved = 0;
-	value.pagenumber = gfn;
-
-	pr_info("%s set secure AVIC backing page %llx\n", __func__, gfn);
-	memset(input, 0, struct_size(input, element, 1));
-	input->header.partitionid = HV_PARTITION_ID_SELF;
-	input->header.vpindex = HV_VP_INDEX_SELF;
-	input->header.inputvtl = ms_hyperv.vtl;
-	input->element[0].name = HV_X64_REGISTER_SEV_AVIC_GPA;
-	input->element[0].value.reg64 = value.u64;
-
-	do {
-		ret = hv_do_hypercall(control, input, NULL);
-		if (!hv_result_success(ret))
-			pr_err("Failed to set secure AVIC backing page %llx.\n", ret);
-	} while (ret == HV_STATUS_TIME_OUT && retry--);
-
-	local_irq_restore(flags);
-
-       if (hv_result_success(ret))
-               return ES_OK;
-       else
-               return ES_VMM_ERROR;
-}
-
 int hv_snp_boot_ap(u32 cpu, unsigned long start_ip)
 {
 	struct sev_es_save_area *vmsa = (struct sev_es_save_area *)
@@ -513,25 +474,31 @@ int hv_snp_boot_ap(u32 cpu, unsigned long start_ip)
 	vmsa->vmpl = 0;
 	vmsa->sev_features = sev_status >> 2;
 
+	pr_info("%s %d\n", __func__, __LINE__);
+	
 	ret = snp_set_vmsa(vmsa, true);
 	if (ret) {
 		pr_err("RMPADJUST(%llx) failed: %llx\n", (u64)vmsa, ret);
 		free_page((u64)vmsa);
 		return ret;
 	}
-
+	
 	local_irq_save(flags);
 	start_vp_input = (struct hv_enable_vp_vtl *)ap_start_input_arg;
 	memset(start_vp_input, 0, sizeof(*start_vp_input));
-	start_vp_input->partition_id = -1;
+	start_vp_input->partition_id = HV_PARTITION_ID_SELF;
 	start_vp_input->vp_index = cpu;
 	start_vp_input->target_vtl.target_vtl = ms_hyperv.vtl;
 	*(u64 *)&start_vp_input->vp_context = __pa(vmsa) | 1;
 
+	pr_info("%s %d\n", __func__, __LINE__);
+	
 	do {
 		ret = hv_do_hypercall(HVCALL_START_VP,
 				      start_vp_input, NULL);
 	} while (hv_result(ret) == HV_STATUS_TIME_OUT && retry--);
+
+	pr_info("%s %d\n", __func__, __LINE__);
 
 	local_irq_restore(flags);
 
@@ -541,11 +508,15 @@ int hv_snp_boot_ap(u32 cpu, unsigned long start_ip)
 		vmsa = NULL;
 	}
 
+	pr_info("%s %d\n", __func__, __LINE__);
+	
 	cur_vmsa = per_cpu(hv_sev_vmsa, cpu);
 	/* Free up any previous VMSA page */
 	if (cur_vmsa)
 		snp_cleanup_vmsa(cur_vmsa);
 
+	pr_info("%s %d\n", __func__, __LINE__);
+	
 	/* Record the current VMSA page */
 	per_cpu(hv_sev_vmsa, cpu) = vmsa;
 

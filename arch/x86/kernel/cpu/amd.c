@@ -975,6 +975,8 @@ static void init_amd(struct cpuinfo_x86 *c)
 	case 0x16: init_amd_jg(c); break;
 	}
 
+	pr_info("%s %d \n", __func__, __LINE__);
+	
 	/*
 	 * Save up on some future enablement work and do common Zen
 	 * settings.
@@ -982,6 +984,9 @@ static void init_amd(struct cpuinfo_x86 *c)
 	if (c->x86 >= 0x17)
 		init_amd_zen_common();
 
+	pr_info("%s %d \n", __func__, __LINE__);
+	
+	
 	if (boot_cpu_has(X86_FEATURE_ZEN1))
 		init_amd_zen1(c);
 	else if (boot_cpu_has(X86_FEATURE_ZEN2))
@@ -993,6 +998,7 @@ static void init_amd(struct cpuinfo_x86 *c)
 	else if (boot_cpu_has(X86_FEATURE_ZEN5))
 		init_amd_zen5(c);
 
+	pr_info("%s %d \n", __func__, __LINE__);
 	/*
 	 * Enable workaround for FXSAVE leak on CPUs
 	 * without a XSaveErPtr feature
@@ -1000,12 +1006,21 @@ static void init_amd(struct cpuinfo_x86 *c)
 	if ((c->x86 >= 6) && (!cpu_has(c, X86_FEATURE_XSAVEERPTR)))
 		set_cpu_bug(c, X86_BUG_FXSAVE_LEAK);
 
+	pr_info("%s %d \n", __func__, __LINE__);
+
 	cpu_detect_cache_sizes(c);
 
+	pr_info("%s %d \n", __func__, __LINE__);
+	
 	srat_detect_node(c);
 
+	pr_info("%s %d \n", __func__, __LINE__);
+	
 	init_amd_cacheinfo(c);
 
+	pr_info("%s %d \n", __func__, __LINE__);
+	
+	
 	if (cpu_has(c, X86_FEATURE_SVM)) {
 		rdmsrl(MSR_VM_CR, vm_cr);
 		if (vm_cr & SVM_VM_CR_SVM_DIS_MASK) {
@@ -1014,6 +1029,9 @@ static void init_amd(struct cpuinfo_x86 *c)
 		}
 	}
 
+	pr_info("%s %d \n", __func__, __LINE__);
+
+
 	if (!cpu_has(c, X86_FEATURE_LFENCE_RDTSC) && cpu_has(c, X86_FEATURE_XMM2)) {
 		/*
 		 * Use LFENCE for execution serialization.  On families which
@@ -1021,8 +1039,12 @@ static void init_amd(struct cpuinfo_x86 *c)
 		 * msr_set_bit() uses the safe accessors, too, even if the MSR
 		 * is not present.
 		 */
-		msr_set_bit(MSR_AMD64_DE_CFG,
-			    MSR_AMD64_DE_CFG_LFENCE_SERIALIZE_BIT);
+		pr_info("%s %d \n", __func__, __LINE__);
+		
+		//	msr_set_bit(MSR_AMD64_DE_CFG,
+		//	    MSR_AMD64_DE_CFG_LFENCE_SERIALIZE_BIT);
+		pr_info("%s %d \n", __func__, __LINE__);
+	
 
 		/* A serializing LFENCE stops RDTSC speculation */
 		set_cpu_cap(c, X86_FEATURE_LFENCE_RDTSC);
@@ -1034,6 +1056,7 @@ static void init_amd(struct cpuinfo_x86 *c)
 	 */
 	if (c->x86 > 0x11)
 		set_cpu_cap(c, X86_FEATURE_ARAT);
+	pr_info("%s %d \n", __func__, __LINE__);
 
 	/* 3DNow or LM implies PREFETCHW */
 	if (!cpu_has(c, X86_FEATURE_3DNOWPREFETCH))

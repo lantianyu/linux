@@ -23,6 +23,7 @@
 #define WARN(condition, format...) (!!(condition))
 #define sev_printk(fmt, ...)
 #define sev_printk_rtl(fmt, ...)
+#define vc_forward_exception(c)
 #endif
 
 /*
@@ -362,7 +363,7 @@ static int svsm_perform_ghcb_protocol(struct ghcb *ghcb, struct svsm_call *call)
 	case ES_OK:
 		break;
 	case ES_EXCEPTION:
-		//vc_forward_exception(&ctxt);
+		vc_forward_exception(&ctxt);
 		fallthrough;
 	default:
 		return -EINVAL;

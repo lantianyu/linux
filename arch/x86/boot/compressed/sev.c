@@ -208,8 +208,8 @@ static int svsm_perform_call_protocol(struct svsm_call *call)
 		ghcb = NULL;
 
 	do {
-		ret = svsm_perform_ghcb_protocol(ghcb, call);
-		//			   : svsm_perform_msr_protocol(call);
+		ret = ghcb ? svsm_perform_ghcb_protocol(ghcb, call)
+				   : svsm_perform_msr_protocol(call);
 	} while (ret == -EAGAIN);
 
 	return ret;
@@ -351,9 +351,18 @@ void snp_accept_memory(phys_addr_t start, phys_addr_t end)
 
 void sev_es_shutdown_ghcb(void)
 {
+       struct boot_e820_entry *e820_entry;
+
 	if (!boot_ghcb)
 		return;
 
+	e820_entry = &boot_params_ptr->e820_table[boot_params_ptr->e820_entries];
+	e820_entry->addr = __pa(boot_ghcb);
+	e820_entry->size = PAGE_SIZE;
+	e820_entry->type = E820_TYPE_RESERVED;
+	boot_params_ptr->e820_entries++;
+	return;
+	
 	if (!sev_es_check_cpu_features())
 		error("SEV-ES CPU Features missing.");
 
